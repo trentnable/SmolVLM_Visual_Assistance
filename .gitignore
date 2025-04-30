@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.swp
+sglass-env/
+*/venv/
+*/.env/
+*/env/
+venv/
+.env/

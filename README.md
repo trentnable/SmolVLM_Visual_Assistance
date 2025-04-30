@@ -21,7 +21,10 @@ It does all this using a specially designed natural-language prompt for assistiv
 
 ##  Setup Instructions
 
-These steps assume you're on a Linux-based system like Jetson Xavier or Orin. No `sudo` is required.
+These steps assume you're on a Linux-based system like Jetson Xavier or Orin.
+Username: sdesign
+Password: sdesign5
+IP: 131.230.193.210
 
 ### 1. Clone the Repository
 

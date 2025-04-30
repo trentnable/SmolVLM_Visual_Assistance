@@ -26,7 +26,7 @@ These steps assume you're on a Linux-based system like Jetson Xavier or Orin. No
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/SmolVLM_Visual_Assistance.git
+git clone https://github.com/trentnable/SmolVLM_Visual_Assistance.git
 cd SmolVLM_Visual_Assistance
 ```
 

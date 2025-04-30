@@ -118,7 +118,7 @@ SmolVLM_Visual_Assistance/
 
 - **Model**: [SmolVLM-500M-Instruct](https://huggingface.co/HuggingFaceTB/SmolVLM-500M-Instruct) by HuggingFaceTB  
 - **Vision-Language Framework**: [Transformers](https://github.com/huggingface/transformers) by Hugging Face  
-- **Script & Integration**: Pranjal Neupane, Senior Design Team
+- **Script & Integration**: Senior Design Team
 
 ---
 

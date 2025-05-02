@@ -128,3 +128,5 @@ SmolVLM_Visual_Assistance/
 
 ---
 
+##  Sources provided by Dr. Anagnostopoulos:  
+[Sources](SOURCES.md)

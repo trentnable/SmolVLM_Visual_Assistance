@@ -1,106 +1,108 @@
-#  SmolVLM Visual Assistance
+#  Visual Assistant
 
 ##  Windows Setup Instructions
 
 Clone the Repository
+
 ```bash
 git clone -b landon https://github.com/trentnable/SmolVLM_Visual_Assistance.git
 ```
 
 Move to new directory
-```bash
-cd SmolVLM_Visual_Assistance
-```
-
-Create python or conda virtual environment
 
 ```bash
-
+cd SmolVLM_Visual_Assistance\llama.cpp
 ```
 
-### 2. Create and Activate a Virtual Environment
+A few of things:
+- CUDA is required for the GPU build
+    - [Download here](https://developer.nvidia.com/cuda-downloads?target_os=Windows&target_arch=x86_64&target_version=11&target_type=exe_local)
+    - Select Windows - x86_64 - 11 - exe (local)
+    - You may also need to install drivers
+    - Once installed, check with `nvcc --version`. It should show no error.
+- You need CMake
+    - [Download here](https://cmake.org/download/)
+    - Needs to be added to PATH
+- You need some Visual Studio development tools (Desktop Development with C++ workload)
+    - [Development Tools Download](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+
+Time to build from source. This configuration requires a GPU, and will take a while.
 
 ```bash
-python3 -m venv smartglasses-env
-source smartglasses-env/bin/activate
+mkdir build
+cmake -B build -DGGML_CUDA=ON -DLLAMA_CURL=OFF
+cmake --build build --config Release
 ```
 
->  If `venv` does not work, please make sure Python 3 is installed and you're not inside a conda environment.
+For CPU build:
+```bash
+mkdir build
+cmake -B build
+cmake --build build --config Release
+```
 
-### 3. Install the Required Packages
+To test the build, run:
+```bash
+cd build\bin\Release & .\llama-cli.exe --version
+```
+
+Next, you need to make the folder where you will store models used by the llama server.
+
+From the project directory:
 
 ```bash
-pip install -r requirements.txt
+mkdir models & cd models
 ```
 
->  If `requirements.txt` is missing, you can install dependencies manually:
+Download the models to the folder
 
 ```bash
-pip install torch torchvision transformers pillow
+curl -L -o mmproj-SmolVLM-500M-Instruct-Q8_0.gguf "https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
+
+curl -L -o SmolVLM-500M-Instruct-Q8_0.gguf "https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf"
+
+curl -L -o Phi-3-mini-4k-instruct-q4.gguf "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf"
+
+curl -L -o tinyllama0.3_Q4_K_M.gguf "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v0.3-GGUF/resolve/main/tinyllama-1.1b-chat-v0.3.Q4_K_M.gguf"
 ```
 
----
+Edit the 'smolvlm_server.bat', 'tinyllama_server.bat', and 'phi3_server.bat' scripts to use the directories where your project and virtual environment are.
 
-##  Running the Model
+For 'smolvlm_server.bat':
+```bash
+@echo off
 
-### 1. Add an image
+cd C:\project_directory\llama.cpp\build\bin\Release
 
-Place any `.jpg` or `.png` image in the project directory, or use one of the provided samples (e.g., `sample.jpg`, `sample2.jpg`, etc.).
+call .\llama-server.exe -m "C:\project_directory\SmolVLM_Visual_Assistance\models\SmolVLM-500M-Instruct-Q8_0.gguf" --mmproj "C:\project_directory\SmolVLM_Visual_Assistance\models\mmproj-SmolVLM-500M-Instruct-Q8_0.gguf" -ngl 99
 
-### 2. Run the model
+cmd
+```
+
+If you're not using GPU, exclude `-ngl 99`
+
+
+
+
+Create a python virtual environment
 
 ```bash
-python smol_test.py sample2.jpg
+python -m venv dependencies
 ```
 
-The script will generate a detailed, plain-text description of the image.
+Edit the 'launch_venv.bat' script to use the directories where your project and virtual environment are.
 
----
+```bash
+@echo off
+REM Change to the same directory as your virtual environment
+cd /d "C:\project_directory"
 
-##  Prompt Design
+REM Activate the virtual environment
+call "C:\project_directory\Scripts\activate.bat"
 
-This model uses a universal vision-language prompt:
-
-```python
-prompt = (
-    "<image> You are an assistive vision AI. Provide exactly one concise paragraph that: "
-    "1) names the primary objects and their relative positions (left, center, right), "
-    "2) gives quantities if relevant, "
-    "3) calls out any obstacles or hazards, "
-    "4) highlights distinctive colors or features. "
-    "Do not use headings, labels, example lines, or numbers—just the plain description."
-)
+REM Keep the terminal open
+cmd
 ```
-
-The output is post-processed to strip out:
-- Repeated prompts
-- HTML tags
-- Unfinished sentences
-
----
-
-##  Output Example
-
-```
-People are sitting around a table. There are four people in the image. There are two women and two men. The women are smiling. The men are smiling. There are plates of food on the table. There are glasses of wine and juice on the table. There is a bowl of pasta on the table. There is a vase of flowers on the table. There is a chair behind the table. There is a window behind the table. There is a wall behind the table. There is a shelf above the table. There is a bowl on the shelf. There is a potted plant on the shelf. There is a clock on the wall. There is a picture on the wall. There is a mirror on the wall. There is a door on the wall. There is a rug on the floor. There is a chair in the corner of the room. There is a person standing in the corner of the room. There is a person sitting in the corner of the room.
-```
-
----
-
-##  Project Structure
-
-```
-SmolVLM_Visual_Assistance/
-├── smol_test.py         # Main inference script
-├── sample.jpg           # Example test image
-├── sample2.jpg          # Example test image
-├── sample3.jpg          # Example test image
-├── requirements.txt     # Python dependencies
-├── .gitignore           # Ignores venv, __pycache__, etc.
-└── README.md            # Instructions
-```
-
----
 
 ##  Credits
 

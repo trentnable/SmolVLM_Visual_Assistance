@@ -66,7 +66,7 @@ curl -L -o Phi-3-mini-4k-instruct-q4.gguf "https://huggingface.co/microsoft/Phi-
 curl -L -o tinyllama0.3_Q4_K_M.gguf "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v0.3-GGUF/resolve/main/tinyllama-1.1b-chat-v0.3.Q4_K_M.gguf"
 ```
 
-Edit the 'smolvlm_server.bat', 'tinyllama_server.bat', and 'phi3_server.bat' scripts to use the directories where your project and virtual environment are.
+Edit the 'smolvlm_server.bat', 'tinyllama_server.bat', and 'phi3_server.bat' scripts to use the directories of llama-cli.exe and the models. Templates for the .bat files are included in this repo.
 
 For 'smolvlm_server.bat':
 ```bash
@@ -81,8 +81,9 @@ cmd
 
 If you're not using GPU, exclude `-ngl 99`
 
+Run each .bat and it should say it is listening at a port (as you designated in the .bat script). Then double click to lauch the index.html from smolvlm-realtime-webcam folder and it should be working.
 
-
+# Begin to integrate depth and object detection
 
 Create a python virtual environment
 

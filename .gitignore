@@ -1,10 +1,6 @@
-__pycache__/
-*.pyc
-*.pyo
-*.swp
-sglass-env/
-*/venv/
-*/.env/
-*/env/
-venv/
-.env/
+models
+*.png
+*.jpg
+*.pt
+weights
+vision-assistant

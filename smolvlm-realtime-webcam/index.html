@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Interaction App</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .controls, .io-areas {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .io-areas {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        textarea {
+            width: 300px;
+            height: 80px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        #videoFeed {
+            width: 480px;
+            height: 360px;
+            border: 2px solid #333;
+            background-color: #000;
+            border-radius: 8px;
+        }
+        #startButton {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            color: white;
+        }
+        #startButton.start {
+            background-color: #28a745;
+        }
+        #startButton.stop {
+            background-color: #dc3545;
+        }
+        label {
+            font-weight: bold;
+        }
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Camera Interaction App</h1>
+
+    <video id="videoFeed" autoplay playsinline></video>
+    <canvas id="canvas" class="hidden"></canvas>
+
+    <div class="io-areas">
+        <div>
+            <label for="baseURL">SmolVLM Base API:</label><br>
+            <input id="baseURL" value="http://localhost:8080">
+        </div>
+        <div>
+            <select id="llmURL">
+                <option value="http://localhost:8081">TinyLlama (8081)</option>
+                <option value="http://localhost:8082">Phi-3 (8082)</option>
+            </select>
+        </div>
+        <div>
+            <label for="instructionText">Instruction:</label><br>
+            <textarea id="instructionText" style="height: 2em; width: 40em"></textarea>
+        </div>
+        <div>
+            <label for="smolvlmResponse">SmolVLM Response:</label><br>
+            <textarea id="smolvlmResponse" style="height: 4em; width: 40em" readonly></textarea>
+        </div>
+        <div>
+            <label for="tinyLlamaResponse">TinyLlama Response:</label><br>
+            <textarea id="tinyLlamaResponse" style="height: 4em; width: 40em" readonly></textarea>
+        </div>
+
+        <div>
+            <label for="phi3Response">Phi3 Response:</label><br>
+            <textarea id="phi3Response" style="height: 4em; width: 40em" readonly></textarea>
+        </div>
+
+    </div>
+
+    <div class="controls">
+        <label for="intervalSelect">Interval:</label>
+        <select id="intervalSelect">
+            <option value="100">100ms</option>
+            <option value="250">250ms</option>
+            <option value="500" selected>500ms</option>
+            <option value="1000">1s</option>
+            <option value="2000">2s</option>
+            <option value="single">Single Frame</option>
+        </select>
+        <button id="startButton" class="start">Start</button>
+    </div>
+
+    <script>
+        const video = document.getElementById('videoFeed');
+        const canvas = document.getElementById('canvas');
+        const baseURL = document.getElementById('baseURL');
+        const llmURL = document.getElementById('llmURL');
+        const instructionText = document.getElementById('instructionText');
+        const smolvlmResponse = document.getElementById('smolvlmResponse');
+        const tinyLlamaResponse = document.getElementById('tinyLlamaResponse');
+        const phi3Response = document.getElementById('phi3Response');
+        const intervalSelect = document.getElementById('intervalSelect');
+
+        const startButton = document.getElementById('startButton');
+
+        instructionText.value = "Where's my water bottle?";
+
+        let stream, intervalId, isProcessing = false;
+
+        async function sendSmolVLMRequest(instruction, imageBase64URL) {
+            const response = await fetch(`${baseURL.value}/v1/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    max_tokens: 150,
+                    messages: [
+                        { role: 'user', content: [
+                            { type: 'text', text: instruction },
+                            { type: 'image_url', image_url: { url: imageBase64URL } }
+                        ]}
+                    ]
+                })
+            });
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        async function sendLlmRequest(instruction, smolResponse) {
+            const finalPrompt = `The user asked: "${instruction}". 
+        The vision model responded: "${smolResponse}". 
+        Reformulate this answer to better address the user's question. If the user asks about a 
+        specific object and the vision model mentions it at all, tell the user it's in view.`;
+
+            const response = await fetch(`${llmURL.value}/v1/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prompt: finalPrompt,
+                    max_tokens: 50,
+                    temperature: 0.7
+                })
+            });
+            const data = await response.json();
+            return data.choices[0].text;
+        }
+
+        function captureImage() {
+            if (!stream || !video.videoWidth) return null;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/jpeg', 0.8);
+        }
+
+        async function sendData() {
+            if (!isProcessing) return;
+
+            const instruction = instructionText.value;
+            const imageBase64URL = captureImage();
+            if (!imageBase64URL) return;
+
+            try {
+                // 1. Get SmolVLM vision response
+                const smolResponse = await sendSmolVLMRequest(instruction, imageBase64URL);
+                smolvlmResponse.value = smolResponse;
+
+                // 2. Send result to selected LLM (Phi-3 or TinyLlama)
+                if (llmURL.value.includes("8081")) {
+                    const tinyResponse = await sendLlmRequest(instruction, smolResponse);
+                    tinyLlamaResponse.value = tinyResponse;
+                } else if (llmURL.value.includes("8082")) {
+                    const phiResponse = await sendLlmRequest(instruction, smolResponse);
+                    phi3Response.value = phiResponse;
+                }
+            } catch (error) {
+                console.error("Error in sendData:", error);
+                smolvlmResponse.value = "Error: " + error.message;
+            }
+        }
+
+
+        async function initCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                smolvlmResponse.value = "Camera ready.";
+            } catch (err) {
+                alert("Camera access denied: " + err.message);
+            }
+        }
+
+        function handleStart() {
+            if (!stream) return alert("Camera not available.");
+            isProcessing = true;
+            startButton.textContent = "Stop";
+            startButton.classList.replace('start', 'stop');
+            instructionText.disabled = true;
+            intervalSelect.disabled = true;
+
+            if(intervalSelect.value==="single")
+            {
+                sendData().then(() => handleStop());
+            }
+            else
+            {
+                const intervalMs = parseInt(intervalSelect.value, 10);
+                sendData();
+                intervalId = setInterval(sendData, intervalMs);
+            }
+        }
+
+        function handleStop() {
+            isProcessing = false;
+            clearInterval(intervalId);
+            intervalId = null;
+            startButton.textContent = "Start";
+            startButton.classList.replace('stop', 'start');
+            instructionText.disabled = false;
+            intervalSelect.disabled = false;
+        }
+
+        startButton.addEventListener('click', () => isProcessing ? handleStop() : handleStart());
+        window.addEventListener('DOMContentLoaded', initCamera);
+    </script>
+</body>
+</html>

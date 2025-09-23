@@ -1,39 +1,21 @@
 #  SmolVLM Visual Assistance
 
-This project uses [SmolVLM-500M-Instruct](https://huggingface.co/HuggingFaceTB/SmolVLM-500M-Instruct) to generate natural-language visual descriptions of real-world scenes. It is designed to provide environmental awareness for visually impaired individuals using smart glasses or other embedded platforms.
+##  Windows Setup Instructions
 
- Runs entirely in a **Python virtual environment**  
- Compatible with **NVIDIA Jetson AGX**, Orin, or any Linux system with Python 3
+Clone the Repository
+```bash
+git clone -b landon https://github.com/trentnable/SmolVLM_Visual_Assistance.git
+```
 
----
+Move to new directory
+```bash
+cd SmolVLM_Visual_Assistance
+```
 
-##  What It Does
-
-Given an image, the AI model:
-- Describes key objects (e.g., doors, chairs, people)
-- Provides spatial orientation (left, center, right)
-- Mentions obstacles or hazards
-- Highlights colors and distinctive features
-
-It does all this using a specially designed natural-language prompt for assistive vision tasks.
-
----
-
-##  Setup Instructions
-
-These steps assume you're on a Linux-based system like Jetson Xavier or Orin.
-
-Username: sdesign
-
-Password: sdesign5
-
-IP: 131.230.193.210
-
-### 1. Clone the Repository
+Create python or conda virtual environment
 
 ```bash
-git clone https://github.com/trentnable/SmolVLM_Visual_Assistance.git
-cd SmolVLM_Visual_Assistance
+
 ```
 
 ### 2. Create and Activate a Virtual Environment

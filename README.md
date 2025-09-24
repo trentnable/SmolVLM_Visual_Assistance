@@ -15,8 +15,7 @@ cd SmolVLM_Visual_Assistance\llama.cpp
 ```
 
 A few of things:
-- CUDA is required for the GPU build
-    - [Download here]()
+- CUDA is required for the GPU build (can specify specifc version if needed)
     ```bash
     sudo apt install cuda
 - You need CMake
@@ -113,4 +112,5 @@ cmd
 ---
 
 ##  Sources provided by Dr. Anagnostopoulos:  
+
 [Sources](SOURCES.md)

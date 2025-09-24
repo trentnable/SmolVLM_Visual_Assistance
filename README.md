@@ -1,6 +1,6 @@
 #  Visual Assistant
 
-##  Windows Setup Instructions
+##  Linux Setup Instructions
 
 Clone the Repository
 

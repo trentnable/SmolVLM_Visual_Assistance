@@ -16,10 +16,9 @@ cd SmolVLM_Visual_Assistance\llama.cpp
 
 A few of things:
 - CUDA is required for the GPU build
-    - [Download here](https://developer.nvidia.com/cuda-downloads?target_os=Windows&target_arch=x86_64&target_version=11&target_type=exe_local)
-    - Select Windows - x86_64 - 11 - exe (local)
-    - You may also need to install drivers
-    - Once installed, check with `nvcc --version`. It should show no error.
+    - [Download here]()
+    ```bash
+    sudo apt install cuda
 - You need CMake
     - [Download here](https://cmake.org/download/)
     - Needs to be added to PATH

@@ -19,8 +19,8 @@ A few of things:
     ```bash
     sudo apt install cuda
 - You need CMake
-    - [Download here](https://cmake.org/download/)
-    - Needs to be added to PATH
+    ```bash
+    sudo apt install cmake
 - You need some Visual Studio development tools (Desktop Development with C++ workload)
     - [Development Tools Download](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
 
@@ -114,3 +114,4 @@ cmd
 ##  Sources provided by Dr. Anagnostopoulos:  
 
 [Sources](SOURCES.md)
+

@@ -21,9 +21,9 @@ A few of things:
 - You need CMake
     ```bash
     sudo apt install cmake
-- You need some Visual Studio development tools (Desktop Development with C++ workload)
-    - [Development Tools Download](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
-
+- You need C++ / gcc
+    ```bash
+    sudo apt install gcc
 Time to build from source. This configuration requires a GPU, and will take a while.
 
 ```bash
@@ -114,4 +114,5 @@ cmd
 ##  Sources provided by Dr. Anagnostopoulos:  
 
 [Sources](SOURCES.md)
+
 

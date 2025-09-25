@@ -24,6 +24,21 @@ A few of things:
 - You need C++ / gcc
     ```bash
     sudo apt install gcc
+
+- Curl usage is enabled by default and can be turned off with -DLLAMA_CURL=OFF. Otherwise you need to install development libraries for libcurl.
+
+    Debian / Ubuntu:
+  
+          sudo apt-get install libcurl4-openssl-dev # (or libcurl4-gnutls-dev if you prefer GnuTLS)
+  
+    Fedora / RHEL / Rocky / Alma:
+  
+          sudo dnf install libcurl-devel
+  
+    Arch / Manjaro:
+  
+          sudo pacman -S curl # includes libcurl headers
+
 Time to build from source. This configuration requires a GPU, and will take a while.
 
 ```bash
@@ -114,6 +129,7 @@ cmd
 ##  Sources provided by Dr. Anagnostopoulos:  
 
 [Sources](SOURCES.md)
+
 
 
 

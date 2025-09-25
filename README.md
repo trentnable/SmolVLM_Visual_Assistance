@@ -85,11 +85,10 @@ For 'smolvlm_server.bat':
 ```bash
 @echo off
 
-cd C:\project_directory\llama.cpp\build\bin\Release
+cd project_directory/llama.cpp
 
-call .\llama-server.exe -m "C:\project_directory\SmolVLM_Visual_Assistance\models\SmolVLM-500M-Instruct-Q8_0.gguf" --mmproj "C:\project_directory\SmolVLM_Visual_Assistance\models\mmproj-SmolVLM-500M-Instruct-Q8_0.gguf" -ngl 99
+./build/bin/llama-server -m "./models/SmolVLM-500M-Instruct-Q8_0.gguf" --mmproj "./project_directory/SmolVLM_Visual_Assistance/models/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf" -ngl 99
 
-cmd
 ```
 
 If you're not using GPU, exclude `-ngl 99`
@@ -129,6 +128,7 @@ cmd
 ##  Sources provided by Dr. Anagnostopoulos:  
 
 [Sources](SOURCES.md)
+
 
 
 

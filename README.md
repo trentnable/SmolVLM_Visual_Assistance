@@ -5,7 +5,7 @@
 Clone the Repository
 
 ```bash
-git clone -b landon https://github.com/trentnable/SmolVLM_Visual_Assistance.git
+git clone -b reuben https://github.com/trentnable/SmolVLM_Visual_Assistance.git
 ```
 
 Move to new directory
@@ -114,5 +114,6 @@ cmd
 ##  Sources provided by Dr. Anagnostopoulos:  
 
 [Sources](SOURCES.md)
+
 
 

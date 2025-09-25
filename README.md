@@ -95,8 +95,6 @@ Edit the 'launch_venv.bat' script to use the directories where your project and 
 
 ```bash
 @echo off
-REM Change to the same directory as your virtual environment
-cd /d "C:\project_directory"
 
 REM Activate the virtual environment
 call "C:\project_directory\Scripts\activate.bat"
@@ -104,6 +102,21 @@ call "C:\project_directory\Scripts\activate.bat"
 REM Keep the terminal open
 cmd
 ```
+
+Install PyTorch as specifid [here](https://pytorch.org/get-started/locally/)
+
+The following dependencies are requred to run YOLO and MiDaS
+
+```bash
+pip install opencv-python
+
+pip install ultralytics
+
+pip install timm
+
+pip install "fastapi[standard]" uvicorn
+```
+
 
 ##  Credits
 

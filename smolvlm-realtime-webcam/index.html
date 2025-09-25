@@ -77,32 +77,40 @@
     <canvas id="canvas" class="hidden"></canvas>
 
     <div class="io-areas">
-        <div>
+        <!-- <div>
             <label for="baseURL">SmolVLM Base API:</label><br>
             <input id="baseURL" value="http://localhost:8080">
-        </div>
-        <div>
+        </div> -->
+        <!-- <div>
             <select id="llmURL">
                 <option value="http://localhost:8081">TinyLlama (8081)</option>
                 <option value="http://localhost:8082">Phi-3 (8082)</option>
             </select>
-        </div>
+        </div> -->
         <div>
             <label for="instructionText">Instruction:</label><br>
             <textarea id="instructionText" style="height: 2em; width: 40em"></textarea>
         </div>
-        <div>
+        <!-- <div>
             <label for="smolvlmResponse">SmolVLM Response:</label><br>
             <textarea id="smolvlmResponse" style="height: 4em; width: 40em" readonly></textarea>
-        </div>
-        <div>
+        </div> -->
+        <!-- <div>
             <label for="tinyLlamaResponse">TinyLlama Response:</label><br>
             <textarea id="tinyLlamaResponse" style="height: 4em; width: 40em" readonly></textarea>
-        </div>
+        </div> -->
 
         <div>
             <label for="phi3Response">Phi3 Response:</label><br>
             <textarea id="phi3Response" style="height: 4em; width: 40em" readonly></textarea>
+        </div>
+        <div>
+            <label>Detections:</label><br>
+            <img id="detectionView" width="480">
+        </div>
+        <div>
+            <label>Depth Map:</label><br>
+            <img id="depthView" width="480">
         </div>
 
     </div>
@@ -124,10 +132,10 @@
         const video = document.getElementById('videoFeed');
         const canvas = document.getElementById('canvas');
         const baseURL = document.getElementById('baseURL');
-        const llmURL = document.getElementById('llmURL');
+        const llmURL = { value: "http://localhost:8082" };
         const instructionText = document.getElementById('instructionText');
-        const smolvlmResponse = document.getElementById('smolvlmResponse');
-        const tinyLlamaResponse = document.getElementById('tinyLlamaResponse');
+        // const smolvlmResponse = document.getElementById('smolvlmResponse');
+        // const tinyLlamaResponse = document.getElementById('tinyLlamaResponse');
         const phi3Response = document.getElementById('phi3Response');
         const intervalSelect = document.getElementById('intervalSelect');
 
@@ -137,42 +145,42 @@
 
         let stream, intervalId, isProcessing = false;
 
-        async function sendSmolVLMRequest(instruction, imageBase64URL) {
-            const response = await fetch(`${baseURL.value}/v1/chat/completions`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    max_tokens: 150,
-                    messages: [
-                        { role: 'user', content: [
-                            { type: 'text', text: instruction },
-                            { type: 'image_url', image_url: { url: imageBase64URL } }
-                        ]}
-                    ]
-                })
-            });
-            const data = await response.json();
-            return data.choices[0].message.content;
-        }
+        // async function sendSmolVLMRequest(instruction, imageBase64URL) {
+        //     const response = await fetch(`${baseURL.value}/v1/chat/completions`, {
+        //         method: 'POST',
+        //         headers: { 'Content-Type': 'application/json' },
+        //         body: JSON.stringify({
+        //             max_tokens: 150,
+        //             messages: [
+        //                 { role: 'user', content: [
+        //                     { type: 'text', text: instruction },
+        //                     { type: 'image_url', image_url: { url: imageBase64URL } }
+        //                 ]}
+        //             ]
+        //         })
+        //     });
+        //     const data = await response.json();
+        //     return data.choices[0].message.content;
+        // }
 
-        async function sendLlmRequest(instruction, smolResponse) {
-            const finalPrompt = `The user asked: "${instruction}". 
-        The vision model responded: "${smolResponse}". 
-        Reformulate this answer to better address the user's question. If the user asks about a 
-        specific object and the vision model mentions it at all, tell the user it's in view.`;
+        // async function sendLlmRequest(instruction, smolResponse) {
+        //     const finalPrompt = `The user asked: "${instruction}". 
+        // The vision model responded: "${smolResponse}". 
+        // Reformulate this answer to better address the user's question. If the user asks about a 
+        // specific object and the vision model mentions it at all, tell the user it's in view.`;
 
-            const response = await fetch(`${llmURL.value}/v1/completions`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    prompt: finalPrompt,
-                    max_tokens: 50,
-                    temperature: 0.7
-                })
-            });
-            const data = await response.json();
-            return data.choices[0].text;
-        }
+        //     const response = await fetch(`${llmURL.value}/v1/completions`, {
+        //         method: 'POST',
+        //         headers: { 'Content-Type': 'application/json' },
+        //         body: JSON.stringify({
+        //             prompt: finalPrompt,
+        //             max_tokens: 50,
+        //             temperature: 0.7
+        //         })
+        //     });
+        //     const data = await response.json();
+        //     return data.choices[0].text;
+        // }
 
         function captureImage() {
             if (!stream || !video.videoWidth) return null;
@@ -184,36 +192,64 @@
 
         async function sendData() {
             if (!isProcessing) return;
-
             const instruction = instructionText.value;
-            const imageBase64URL = captureImage();
-            if (!imageBase64URL) return;
 
             try {
-                // 1. Get SmolVLM vision response
-                const smolResponse = await sendSmolVLMRequest(instruction, imageBase64URL);
-                smolvlmResponse.value = smolResponse;
+                // Grab current frame
+                const imageBase64 = captureImage();
 
-                // 2. Send result to selected LLM (Phi-3 or TinyLlama)
-                if (llmURL.value.includes("8081")) {
-                    const tinyResponse = await sendLlmRequest(instruction, smolResponse);
-                    tinyLlamaResponse.value = tinyResponse;
-                } else if (llmURL.value.includes("8082")) {
-                    const phiResponse = await sendLlmRequest(instruction, smolResponse);
-                    phi3Response.value = phiResponse;
-                }
+                // Send frame to YOLO+MiDaS backend
+                const detectionResp = await fetch("http://localhost:5000/detect", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ image: imageBase64 })
+                });
+                const detectionData = await detectionResp.json();
+
+                // Show images
+                document.getElementById("detectionView").src = "data:image/png;base64," + detectionData.frame_b64;
+                document.getElementById("depthView").src = "data:image/png;base64," + detectionData.depth_b64;
+
+                // Build LLM prompt
+                const finalPrompt = `
+                    The user asked: "${instruction}". 
+                    Here are the detected objects: 
+                    ${JSON.stringify(detectionData.objects, null, 2)}
+
+                    Rules:
+                    - Do NOT repeat raw coordinates or JSON. 
+                    - If the object is found, describe its relative location (left, right, top, bottom, center). 
+                    - Mention approximate distance (near, medium, far) based on "depth_norm" (0=near, 1=far).
+                    - Answer in one short sentence.
+
+                    Now answer the user's question.
+                    `;
+
+                // Send to Phi-3
+                const response = await fetch(`${llmURL.value}/v1/completions`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        prompt: finalPrompt,
+                        max_tokens: 100,
+                        temperature: 0.7
+                    })
+                });
+                const data = await response.json();
+                phi3Response.value = data.choices[0].text.replace(/<\|.*?\|>/g, "").trim();
+
             } catch (error) {
                 console.error("Error in sendData:", error);
-                smolvlmResponse.value = "Error: " + error.message;
+                phi3Response.value = "Error: " + error.message;
             }
-        }
-
+}
 
         async function initCamera() {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 video.srcObject = stream;
-                smolvlmResponse.value = "Camera ready.";
+                // smolvlmResponse.value = "Camera ready.";
+                phi3Response.value = "Camera ready";
             } catch (err) {
                 alert("Camera access denied: " + err.message);
             }

@@ -119,6 +119,21 @@ pip install timm
 pip install "fastapi[standard]" uvicorn
 ```
 
+## Speech Recognition / Mode Selection
+```
+python --version
+Python 2.7.14
+```
+```
+pip install torch==2.0.0.nv23.05
+pip install whisper==1.1.10
+pip install soundfile==0.13.1
+pip install numpy==1.24.4
+pip install librosa==0.11.0
+pip install transformers==4.46.3
+```
+
+
 
 ##  Credits
 
@@ -131,5 +146,6 @@ pip install "fastapi[standard]" uvicorn
 ##  Sources provided by Dr. Anagnostopoulos:  
 
 [Sources](SOURCES.md)
+
 
 

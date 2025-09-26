@@ -1,0 +1,183 @@
+import cv2
+import json
+import numpy as np
+import torch
+from ultralytics import YOLO
+import urllib.request
+import sys, os
+
+import matplotlib.pyplot as plt
+
+# API stuff for connecting to html
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import base64
+from io import BytesIO
+from PIL import Image
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ----------- YOLO SETUP -----------
+yolo_model = YOLO("yolov8n.pt")  # "n" is nano model, good for Jetson
+
+# ----------- MiDaS SETUP -----------
+# Load MiDaS (small model is fast & accurate enough for real-time)
+
+model_type = "MiDaS_small"  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
+
+midas = torch.hub.load("intel-isl/MiDaS", model_type)
+
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+midas.to(device)
+midas.eval()
+
+midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
+
+if model_type == "DPT_Large" or model_type == "DPT_Hybrid":
+    transform = midas_transforms.dpt_transform
+else:
+    transform = midas_transforms.small_transform
+
+def get_depth_map(frame):
+    """Run MiDaS to get depth map for the frame."""
+    input_batch = transform(frame).to(device)
+    with torch.no_grad():
+        prediction = midas(input_batch)
+
+        prediction = torch.nn.functional.interpolate(
+            prediction.unsqueeze(1),
+            size=frame.shape[:2],
+            mode="bicubic",
+            align_corners=False,
+        ).squeeze()
+
+    output = prediction.cpu().numpy()
+
+    # plt.imshow(output)
+    # plt.show()
+    # Normalize depth to meters-ish (relative)
+    depth = (output - output.min()) / (output.max() - output.min() + 1e-6)
+    return depth
+
+def fuse_yolo_midas(frame):
+    """Run YOLO + MiDaS and return structured object list."""
+    median_depth = None
+    depth_map = get_depth_map(frame)
+    results = yolo_model(frame, verbose=False)
+    objects = []
+
+    for box in results[0].boxes:
+        x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+        label = results[0].names[int(box.cls)]
+        confidence = float(box.conf)
+
+        # compute depth crop before drawing
+        if x2 > x1 and y2 > y1:
+            depth_crop = depth_map[y1:y2, x1:x2]
+            median_depth = float(np.median(depth_crop))
+        else:
+            median_depth = None
+
+        # now draw rectangle and label (with depth if available)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        text = f"{label} {median_depth:.2f}" if median_depth is not None else label
+        cv2.putText(frame, text, (x1, y1 - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        
+        cx = (x1 + x2) / 2
+        cy = (y1 + y2) / 2
+        w, h = frame.shape[1], frame.shape[0]
+
+        horizontal = "left" if cx < w/3 else "right" if cx > 2*w/3 else "center"
+        vertical   = "top" if cy < h/3 else "bottom" if cy > 2*h/3 else "middle"
+        depth_category = round(median_depth, 3) if median_depth is not None else None
+        print(depth_category)
+        depth_category = "close" if depth_category > .6 else "far"
+        print(depth_category)
+
+        objects.append({
+            "label": label,
+            "postion": vertical + horizontal,
+            "depth_category": depth_category
+        })
+    return objects, depth_map, frame
+
+def to_base64_img(img):
+    if len(img.shape) == 2:  # grayscale (depth)
+        img = (img * 255).astype(np.uint8)
+        img = cv2.applyColorMap(img, cv2.COLORMAP_WINTER)
+    # encode regardless (grayscale already converted to color above)
+    _, buffer = cv2.imencode(".png", img)
+    return base64.b64encode(buffer).decode("utf-8")
+    
+@app.post("/detect")
+async def detect(request: Request):
+    data = await request.json()
+    image_b64 = data.get("image")
+    if not image_b64:
+        return JSONResponse(content={"error": "No image provided"}, status_code=400)
+
+    # Decode base64 → OpenCV frame
+    image_bytes = base64.b64decode(image_b64.split(",")[1])  # strip header
+    pil_img = Image.open(BytesIO(image_bytes)).convert("RGB")
+    frame = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+
+    objects, depth_map, frame_with_boxes = fuse_yolo_midas(frame)
+
+    return {
+        "objects": objects,
+        "frame_b64": to_base64_img(frame_with_boxes),
+        "depth_b64": to_base64_img(depth_map)
+    }
+
+def main():
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("❌ Could not open camera.")
+        return
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Run detection + depth fusion
+        objects, depth_map, frame_with_boxes = fuse_yolo_midas(frame)
+
+        # Serialize to JSON
+        json_output = json.dumps(objects, indent=2)
+        print(json_output)
+
+        # OPTIONAL: draw bounding boxes for visualization
+        for obj in objects:
+            x1, y1, x2, y2 = obj["bbox"]
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(frame,
+                        f"{obj['label']} {obj['depth_norm']:.2f}",
+                        (x1, y1 - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        (0, 255, 0),
+                        2)
+
+        cv2.imshow("YOLO + MiDaS", frame)
+
+        key = cv2.waitKey(1)
+        if key == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000)

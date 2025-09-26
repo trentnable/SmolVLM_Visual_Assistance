@@ -1,9 +1,11 @@
-@echo off
-REM Change to the directory where your venv lives
-cd /d "C:\Users\lmgre\Documents\SIU\Senior Design\landon_repo"
+#! bin/bash
 
-REM Activate the virtual environment
-call "C:\Users\lmgre\Documents\SIU\Senior Design\landon_repo\vision-assistant\Scripts\activate.bat"
+#changes to path of virtual enviroment
 
-REM Keep the terminal open
-cmd
+cd "Project_Path"
+
+
+#activates venv
+
+source "venvName"/bin/activate
+

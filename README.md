@@ -21,9 +21,7 @@ A few of things:
 - You need CMake
     ```bash
     sudo apt install cmake
-- You need C++ / gcc
-    ```bash
-    sudo apt install gcc
+
 
 - Curl usage is enabled by default and can be turned off with -DLLAMA_CURL=OFF. Otherwise you need to install development libraries for libcurl.
 
@@ -56,7 +54,7 @@ cmake --build build --config Release
 
 To test the build, run:
 ```bash
-cd build\bin\Release & .\llama-cli.exe --version
+cd build\bin\Release && .\llama-cli.exe --version
 ```
 
 Next, you need to make the folder where you will store models used by the llama server.
@@ -64,7 +62,7 @@ Next, you need to make the folder where you will store models used by the llama 
 From the project directory:
 
 ```bash
-mkdir models & cd models
+mkdir models && cd models
 ```
 
 Download the models to the folder
@@ -105,16 +103,10 @@ python -m venv dependencies
 
 Edit the 'launch_venv.bat' script to use the directories where your project and virtual environment are.
 
+or run the following command.
+
 ```bash
-@echo off
-REM Change to the same directory as your virtual environment
-cd /d "C:\project_directory"
-
-REM Activate the virtual environment
-call "C:\project_directory\Scripts\activate.bat"
-
-REM Keep the terminal open
-cmd
+source dependencies/bin/activate
 ```
 
 ##  Credits
@@ -128,6 +120,7 @@ cmd
 ##  Sources provided by Dr. Anagnostopoulos:  
 
 [Sources](SOURCES.md)
+
 
 
 

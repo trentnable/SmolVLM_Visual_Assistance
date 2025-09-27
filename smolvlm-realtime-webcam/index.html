@@ -116,14 +116,21 @@
     </div>
 
     <div class="controls">
+
+        <label for="modeSelect">Mode:</label>
+        <select id="modeSelect">
+            <option value="llm" selected>Phi-3 (LLM)</option>
+            <option value="direct">Direct (Position + Depth)</option>
+        </select>
+
         <label for="intervalSelect">Interval:</label>
         <select id="intervalSelect">
             <option value="100">100ms</option>
             <option value="250">250ms</option>
-            <option value="500" selected>500ms</option>
+            <option value="500">500ms</option>
             <option value="1000">1s</option>
             <option value="2000">2s</option>
-            <option value="single">Single Frame</option>
+            <option value="single"selected>Single Frame</option>
         </select>
         <button id="startButton" class="start">Start</button>
     </div>
@@ -140,6 +147,8 @@
         const intervalSelect = document.getElementById('intervalSelect');
 
         const startButton = document.getElementById('startButton');
+
+        const modeSelect = document.getElementById('modeSelect'); // mine
 
         instructionText.value = "Where's my water bottle?";
 
@@ -182,6 +191,31 @@
         //     return data.choices[0].text;
         // }
 
+        function describeObject(obj, frameWidth, frameHeight)
+        {
+            const [x1, y1, x2, y2] = obj.bbox;
+            const cx = (x1 + x2) / 2;
+            const cy = (y1 + y2) / 2;
+
+            let horizontal = "center";
+            if (cx < frameWidth / 3) horizontal = "left";
+            else if (cx > 2 * frameWidth / 3) horizontal = "right";
+
+            let vertical = "middle";
+            if (cy < frameHeight / 3) vertical = "top";
+            else if (cy > 2 * frameHeight / 3) vertical = "bottom";
+
+            let depthCategory = "unknown distance";
+            if (obj.depth_norm !== null) {
+                if (obj.depth_norm < 0.66) depthCategory = "far";
+                else if (obj.depth_norm < 0.80) depthCategory = "medium distance";
+                else depthCategory = "near";
+            }
+
+            return `${obj.label} is at the ${vertical} ${horizontal}, ${depthCategory}.`;
+        }
+
+
         function captureImage() {
             if (!stream || !video.videoWidth) return null;
             canvas.width = video.videoWidth;
@@ -210,6 +244,14 @@
                 document.getElementById("detectionView").src = "data:image/png;base64," + detectionData.frame_b64;
                 document.getElementById("depthView").src = "data:image/png;base64," + detectionData.depth_b64;
 
+                if (modeSelect.value === "direct") {
+                    // Build human-friendly response
+                    let responses = detectionData.objects.map(obj =>
+                        describeObject(obj, video.videoWidth, video.videoHeight)
+                    );
+                    phi3Response.value = responses.length > 0 ? responses.join("\n") : "No objects detected.";
+                } else{
+
                 // Build LLM prompt
                 const finalPrompt = `
                     The user asked: "${instruction}". 
@@ -237,6 +279,7 @@
                 });
                 const data = await response.json();
                 phi3Response.value = data.choices[0].text.replace(/<\|.*?\|>/g, "").trim();
+            }
 
             } catch (error) {
                 console.error("Error in sendData:", error);

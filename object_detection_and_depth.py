@@ -72,7 +72,7 @@ def fuse_yolo_midas(frame):
     """Run YOLO + MiDaS and return structured object list."""
     median_depth = None
     depth_map = get_depth_map(frame)
-    results = yolo_model(frame, verbose=False)
+    results = yolo_model(frame, classes=[39], verbose=False)
     objects = []
 
     for box in results[0].boxes:
@@ -105,16 +105,19 @@ def fuse_yolo_midas(frame):
         print(depth_category)
 
         objects.append({
-            "label": label,
-            "postion": vertical + horizontal,
-            "depth_category": depth_category
-        })
+        "label": label,
+        "bbox": [x1, y1, x2, y2],
+        "depth_norm": median_depth,
+        "position": vertical + " " + horizontal,
+        "depth_category": depth_category
+    })
+
     return objects, depth_map, frame
 
 def to_base64_img(img):
     if len(img.shape) == 2:  # grayscale (depth)
         img = (img * 255).astype(np.uint8)
-        img = cv2.applyColorMap(img, cv2.COLORMAP_WINTER)
+        img = cv2.applyColorMap(img, cv2.COLORMAP_HOT)
     # encode regardless (grayscale already converted to color above)
     _, buffer = cv2.imencode(".png", img)
     return base64.b64encode(buffer).decode("utf-8")

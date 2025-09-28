@@ -52,11 +52,9 @@ def classify_request(user_text, select):
     else:
         print("Request Selection classify_request Function Error")
 
-uinput = "Where's my bottle of water?"
-
 start_time = time.time()
 
-req1 = "I need help. "+ uinput
+req1 = "Where's my bottle of water?"
 print(req1)
 
 select = 1

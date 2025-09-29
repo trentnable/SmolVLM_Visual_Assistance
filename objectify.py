@@ -107,7 +107,7 @@ label_texts = {
     "90": "The request is about a toothbrush. Example requests: 'Where is the toothbrush?', 'Find the brush for teeth.'"
 }
 
-label_embeddings = {k: get_embedding(v) for k, v in label_texts1.items()}
+label_embeddings = {k: get_embedding(v) for k, v in label_texts.items()}
 
 import torch.nn.functional as F
 

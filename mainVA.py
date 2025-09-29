@@ -9,7 +9,7 @@ app = FastAPI()
 
 # Mode 1
 out1 = classify_request("Where is my water bottle?")
-yolo_model = setup_yolo("yolo11n.pt")
+yolo_model, class_names = setup_yolo("yolo11n.pt")
 midas, transform = setup_midas("MiDaS_small")
 
 @app.post("/detect")

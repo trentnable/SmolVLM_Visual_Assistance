@@ -26,18 +26,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ----------- YOLO SETUP -----------
+# define yolo model
 yolo_model = YOLO("yolov8n.pt")  # "n" is nano model, good for Jetson
 
-# ----------- MiDaS SETUP -----------
-# Load MiDaS (small model is fast & accurate enough for real-time)
-
+# define midas model
 model_type = "MiDaS_small"  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
 
-midas = torch.hub.load("intel-isl/MiDaS", model_type)
+midas = torch.hub.load("intel-isl/MiDaS", model_type) # load midas
 
-device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-midas.to(device)
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu") # define the device
+midas.to(device) # send to device
 midas.eval()
 
 midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
@@ -62,9 +60,6 @@ def get_depth_map(frame):
 
     output = prediction.cpu().numpy()
 
-    # plt.imshow(output)
-    # plt.show()
-    # Normalize depth to meters-ish (relative)
     depth = (output - output.min()) / (output.max() - output.min() + 1e-6)
     return depth
 
@@ -117,7 +112,7 @@ def fuse_yolo_midas(frame):
 def to_base64_img(img):
     if len(img.shape) == 2:  # grayscale (depth)
         img = (img * 255).astype(np.uint8)
-        img = cv2.applyColorMap(img, cv2.COLORMAP_HOT)
+        img = cv2.applyColorMap(img, cv2.COLORMAP_BONE)
     # encode regardless (grayscale already converted to color above)
     _, buffer = cv2.imencode(".png", img)
     return base64.b64encode(buffer).decode("utf-8")
@@ -141,45 +136,6 @@ async def detect(request: Request):
         "frame_b64": to_base64_img(frame_with_boxes),
         "depth_b64": to_base64_img(depth_map)
     }
-
-def main():
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("❌ Could not open camera.")
-        return
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        # Run detection + depth fusion
-        objects, depth_map, frame_with_boxes = fuse_yolo_midas(frame)
-
-        # Serialize to JSON
-        json_output = json.dumps(objects, indent=2)
-        print(json_output)
-
-        # OPTIONAL: draw bounding boxes for visualization
-        for obj in objects:
-            x1, y1, x2, y2 = obj["bbox"]
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(frame,
-                        f"{obj['label']} {obj['depth_norm']:.2f}",
-                        (x1, y1 - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5,
-                        (0, 255, 0),
-                        2)
-
-        cv2.imshow("YOLO + MiDaS", frame)
-
-        key = cv2.waitKey(1)
-        if key == ord('q'):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     import uvicorn

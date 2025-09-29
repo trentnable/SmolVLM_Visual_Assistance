@@ -163,7 +163,7 @@ app.add_middleware(
 )
 
 # ----------- YOLO SETUP -----------
-yolo_model = YOLO("yolov8n.pt")  # "n" is nano model, good for Jetson
+yolo_model = YOLO("yolov11n.pt")  # "n" is nano model, good for Jetson
 
 # ----------- MiDaS SETUP -----------
 # Load MiDaS (small model is fast & accurate enough for real-time)

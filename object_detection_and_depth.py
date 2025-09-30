@@ -16,6 +16,11 @@ import base64
 from io import BytesIO
 from PIL import Image
 
+import transformers
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+import object_classification as classify
+
 app = FastAPI()
 
 app.add_middleware(
@@ -26,15 +31,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu") # define the device
+
+# define classification model
+classification_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+
+tokenizer = AutoTokenizer.from_pretrained(classification_model)
+model = AutoModelForCausalLM.from_pretrained(classification_model).to(device)
+
 # define yolo model
-yolo_model = YOLO("yolov8n.pt")  # "n" is nano model, good for Jetson
+yolo_model = YOLO("yolo11n.pt")  # "n" is nano model, good for Jetson
 
 # define midas model
 model_type = "MiDaS_small"  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
 
 midas = torch.hub.load("intel-isl/MiDaS", model_type) # load midas
 
-device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu") # define the device
 midas.to(device) # send to device
 midas.eval()
 
@@ -112,7 +124,7 @@ def fuse_yolo_midas(frame):
 def to_base64_img(img):
     if len(img.shape) == 2:  # grayscale (depth)
         img = (img * 255).astype(np.uint8)
-        img = cv2.applyColorMap(img, cv2.COLORMAP_BONE)
+        img = cv2.applyColorMap(img, cv2.COLORMAP_VIRIDIS)
     # encode regardless (grayscale already converted to color above)
     _, buffer = cv2.imencode(".png", img)
     return base64.b64encode(buffer).decode("utf-8")

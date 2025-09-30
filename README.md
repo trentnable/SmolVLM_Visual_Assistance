@@ -58,11 +58,8 @@ Download the models to the folder
 
 ```bash
 curl -L -o mmproj-SmolVLM-500M-Instruct-Q8_0.gguf "https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
-
 curl -L -o SmolVLM-500M-Instruct-Q8_0.gguf "https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf"
-
 curl -L -o Phi-3-mini-4k-instruct-q4.gguf "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf"
-
 curl -L -o tinyllama0.3_Q4_K_M.gguf "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v0.3-GGUF/resolve/main/tinyllama-1.1b-chat-v0.3.Q4_K_M.gguf"
 ```
 
@@ -109,12 +106,10 @@ The following dependencies are requred to run YOLO and MiDaS
 
 ```bash
 pip install opencv-python
-
 pip install ultralytics
-
 pip install timm
-
 pip install "fastapi[standard]" uvicorn
+pip install transformers
 ```
 
 

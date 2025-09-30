@@ -4,3 +4,4 @@ models
 *.pt
 weights
 vision-assistant
+dependencies

@@ -3,14 +3,23 @@ from objectify import classify_request
 from vision import fuse_yolo_midas, to_base64_img, setup_yolo, setup_midas
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
+import time
 
 app = FastAPI()
 
+start_time = time.time()
 
 # Mode 1
 out1 = classify_request("Where is my water bottle?")
 yolo_model, class_names = setup_yolo("yolo11n.pt")
 midas, transform = setup_midas("MiDaS_small")
+
+end_time = time.time()
+
+# Calculate elapsed time
+elapsed_time = end_time - start_time
+print(f"Elapsed time: {elapsed_time:.4f} seconds")
+
 
 @app.post("/detect")
 async def detect(request: Request):

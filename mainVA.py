@@ -4,6 +4,7 @@ from vision import fuse_yolo_midas, to_base64_img, setup_yolo, setup_midas
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 import time
+from ultralytics import YOLO
 
 app = FastAPI()
 
@@ -12,6 +13,9 @@ start_time = time.time()
 # Mode 1
 out1 = classify_request("Where is my water bottle?")
 yolo_model, class_names = setup_yolo("yolo11n.pt")
+
+print("! ! ! ! !\n" + yolo_model.names[int(out1)] + "\n! ! ! ! !")
+
 midas, transform = setup_midas("MiDaS_small")
 
 end_time = time.time()
@@ -40,3 +44,8 @@ async def detect(request: Request):
         "frame_b64": to_base64_img(frame_with_boxes),
         "depth_b64": to_base64_img(depth_map)
     }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000)
+

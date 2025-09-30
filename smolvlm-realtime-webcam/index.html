@@ -232,6 +232,15 @@
                     let responses = detectionData.objects.map(obj =>
                         describeObject(obj, video.videoWidth, video.videoHeight)
                     );
+
+                    // text to speech
+                    const speak = await fetch("http://localhost:5000/speak",
+                            {
+                                method: "POST",
+                                headers: { "Content-Type": "text/plain" },  // from json to plain text for text to speech
+                                body: JSON.stringify(responses)
+                            });
+
                     phi3Response.value = responses.length > 0 ? responses.join("\n") : "No objects detected.";
                 } else{
 

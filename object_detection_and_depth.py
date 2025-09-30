@@ -19,7 +19,12 @@ from PIL import Image
 import transformers
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-import object_classification as classify
+# text to speech
+from gtts import gTTS
+from playsound import playsound
+import tempfile
+
+# import object_classification as classify
 
 app = FastAPI()
 
@@ -34,10 +39,10 @@ app.add_middleware(
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu") # define the device
 
 # define classification model
-classification_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+# classification_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
-tokenizer = AutoTokenizer.from_pretrained(classification_model)
-model = AutoModelForCausalLM.from_pretrained(classification_model).to(device)
+# tokenizer = AutoTokenizer.from_pretrained(classification_model)
+# model = AutoModelForCausalLM.from_pretrained(classification_model).to(device)
 
 # define yolo model
 yolo_model = YOLO("yolo11n.pt")  # "n" is nano model, good for Jetson
@@ -148,6 +153,23 @@ async def detect(request: Request):
         "frame_b64": to_base64_img(frame_with_boxes),
         "depth_b64": to_base64_img(depth_map)
     }
+
+@app.post("/speak")
+async def speak(request: Request):
+    string_list = await request.json()
+    string_to_speak = " ".join(string_list)
+    tts = gTTS(string_to_speak, lang="en", tld='co.uk') # bah oh of wah uh
+
+    # Save to a temporary mp3 file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+        temp_path = fp.name
+        tts.save(temp_path)
+
+    # Play it
+    playsound(temp_path)
+
+    return 0
+
 
 if __name__ == "__main__":
     import uvicorn

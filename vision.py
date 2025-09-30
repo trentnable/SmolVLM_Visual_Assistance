@@ -49,6 +49,8 @@ def fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=None):
     depth_map = get_depth_map(frame, midas, transform)
     results = yolo_model(frame, classes=[class_id] if class_id is not None else None, verbose=False)
 
+    print("\n" + yolo_model.names[class_id] + "\n")
+
     objects = []
 
     for box in results[0].boxes:
@@ -76,7 +78,7 @@ def fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=None):
         vertical   = "top" if cy < h/3 else "bottom" if cy > 2*h/3 else "middle"
         depth_category = None
         if median_depth is not None:
-            depth_category = "close" if median_depth > 0.6 else "far"
+            depth_category = "close" if median_depth > 0.3 else "far"
 
         objects.append({
             "label": label,

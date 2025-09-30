@@ -1,4 +1,4 @@
-from pyapi import FastAPI
+from fastapi import FastAPI, Request
 from objectify import classify_request
 from vision import fuse_yolo_midas, to_base64_img, setup_yolo, setup_midas
 import warnings

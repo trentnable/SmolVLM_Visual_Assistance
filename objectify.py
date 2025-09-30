@@ -112,9 +112,3 @@ def classify_request(user_text):
       scores = {k: F.cosine_similarity(emb, v, dim=0).item() 
               for k, v in label_embeddings.items()}
       return max(scores, key=scores.get)
-    
-end_time = time.time()
-
-# Calculate elapsed time
-elapsed_time = end_time - start_time
-print(f"Elapsed time: {elapsed_time:.4f} seconds")

@@ -79,17 +79,26 @@ curl -L -o tinyllama0.3_Q4_K_M.gguf "https://huggingface.co/TheBloke/TinyLlama-1
 
 Edit the 'smolvlm_server.bat', 'tinyllama_server.bat', and 'phi3_server.bat' scripts to use the directories of llama-cli.exe and the models. Templates for the .bat files are included in this repo.
 
-For 'smolvlm_server.bat':
+For 'smolvlm_server.sh':
 ```bash
-@echo off
+#! bin/bash
 
 cd project_directory/llama.cpp
 
 ./build/bin/llama-server -m "./models/SmolVLM-500M-Instruct-Q8_0.gguf" --mmproj "./project_directory/SmolVLM_Visual_Assistance/models/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf" -ngl 99
 
 ```
-
 If you're not using GPU, exclude `-ngl 99`
+
+make the shell script an executable (Might Need sudo privileges)
+```bash
+#! bin/bash
+
+chmod +x ./smolvlm_server.sh
+
+```
+
+
 
 Run each .bat and it should say it is listening at a port (as you designated in the .bat script). Then double click to lauch the index.html from smolvlm-realtime-webcam folder and it should be working.
 

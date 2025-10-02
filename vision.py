@@ -29,8 +29,7 @@ def setup_midas(model_type="MiDaS_small"):
     return midas, transform
 
 def get_depth_map(frame, midas, transform):
-    """Compute depth map using MiDaS."""
-    input_batch = transform(frame).to(DEVICE)
+    input_batch = transform(frame).to("cpu")
     with torch.no_grad():
         prediction = midas(input_batch)
         prediction = torch.nn.functional.interpolate(
@@ -39,8 +38,12 @@ def get_depth_map(frame, midas, transform):
             mode="bicubic",
             align_corners=False,
         ).squeeze()
-    depth = (prediction.cpu().numpy() - prediction.min()) / (prediction.max() - prediction.min() + 1e-6)
+    
+    prediction_np = prediction.cpu().numpy()
+    
+    depth = (prediction_np - prediction_np.min()) / (prediction_np.max() - prediction_np.min() + 1e-6)
     return depth
+
 
 
 # YOLO + MiDaS
@@ -48,8 +51,6 @@ def fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=None):
     """Run YOLO detection + depth estimation. Returns objects, depth_map, frame with boxes."""
     depth_map = get_depth_map(frame, midas, transform)
     results = yolo_model(frame, classes=[class_id] if class_id is not None else None, verbose=False)
-
-    print("\n" + yolo_model.names[class_id] + "\n")
 
     objects = []
 
@@ -78,7 +79,7 @@ def fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=None):
         vertical   = "top" if cy < h/3 else "bottom" if cy > 2*h/3 else "middle"
         depth_category = None
         if median_depth is not None:
-            depth_category = "close" if median_depth > 0.3 else "far"
+            depth_category = "close" if median_depth > 0.6 else "far"
 
         objects.append({
             "label": label,

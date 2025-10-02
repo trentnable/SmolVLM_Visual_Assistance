@@ -5,16 +5,32 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 import time
 from ultralytics import YOLO
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import base64
+from io import BytesIO
+from PIL import Image
+import cv2
+import numpy as np
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 start_time = time.time()
 
 # Mode 1
-out1 = classify_request("Where is my water bottle?")
+out1 = int(classify_request("Where is my water bottle?"))
 yolo_model, class_names = setup_yolo("yolo11n.pt")
 
-print("! ! ! ! !\n" + yolo_model.names[int(out1)] + "\n! ! ! ! !")
+print("! ! ! ! !\n" + yolo_model.names[(out1)] + "\n! ! ! ! !")
 
 midas, transform = setup_midas("MiDaS_small")
 
@@ -48,4 +64,3 @@ async def detect(request: Request):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=5000)
-

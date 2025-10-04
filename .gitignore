@@ -5,3 +5,4 @@ models
 weights
 vision-assistant
 dependencies
+FFmpeg

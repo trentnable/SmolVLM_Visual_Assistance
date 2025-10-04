@@ -21,8 +21,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 # text to speech
 from gtts import gTTS
-from playsound import playsound
-import tempfile
+import subprocess
 
 # import object_classification as classify
 
@@ -30,7 +29,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -112,9 +111,9 @@ def fuse_yolo_midas(frame):
         horizontal = "left" if cx < w/3 else "right" if cx > 2*w/3 else "center"
         vertical   = "top" if cy < h/3 else "bottom" if cy > 2*h/3 else "middle"
         depth_category = round(median_depth, 3) if median_depth is not None else None
-        print(depth_category)
+        # print(depth_category)
         depth_category = "close" if depth_category > .6 else "far"
-        print(depth_category)
+        # print(depth_category)
 
         objects.append({
         "label": label,
@@ -156,21 +155,26 @@ async def detect(request: Request):
 
 @app.post("/speak")
 async def speak(request: Request):
-    string_list = await request.json()
-    string_to_speak = " ".join(string_list)
-    tts = gTTS(string_to_speak, lang="en", tld='co.uk') # bah oh of wah uh
+    data = await request.json()
+    string_to_speak = data.get("text", "")
+    tts = gTTS(string_to_speak, lang="en", tld='co.uk')
 
-    # Save to a temporary mp3 file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-        temp_path = fp.name
-        tts.save(temp_path)
+    buf = BytesIO()
+    gTTS(string_to_speak, lang="en", tld="co.uk").write_to_fp(buf)
+    buf.seek(0)
 
-    # Play it
-    playsound(temp_path)
+    p = subprocess.Popen(
+        [r"C:\Users\lmgre\Documents\SIU\Senior Design\pranjal_repo\SmolVLM_Visual_Assistance\FFmpeg\ffplay.exe", "-nodisp", "-autoexit", "-loglevel", "quiet", "-"],
+        stdin=subprocess.PIPE,
+    )
+
+    p.stdin.write(buf.read())
+    p.stdin.close()
+    p.wait()
 
     return 0
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    uvicorn.run(app, host="127.0.0.1", port=5000)  # localhost only

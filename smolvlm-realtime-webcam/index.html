@@ -122,8 +122,8 @@
                 </div>
 
                 <div>
-                    <label for="phi3Response">Response:</label><br>
-                    <textarea id="phi3Response" style="height: 20em; width: 40em" readonly></textarea>
+                    <label for="response">Response:</label><br>
+                    <textarea id="response" style="height: 20em; width: 40em" readonly></textarea>
                 </div>
             </div>
 
@@ -140,10 +140,10 @@
                 <select id="intervalSelect">
                     <option value="100">100ms</option>
                     <option value="250">250ms</option>
-                    <option value="500"selected>500ms</option>
+                    <option value="500">500ms</option>
                     <option value="1000">1s</option>
                     <option value="2000">2s</option>
-                    <option value="single">Single Frame</option>
+                    <option value="single"selected>Single Frame</option>
                 </select>
 
                 <button id="startButton" class="start">Start</button>
@@ -163,7 +163,7 @@
         const baseURL = document.getElementById('baseURL');
         const llmURL = { value: "http://localhost:8082" };
         const instructionText = document.getElementById('instructionText');
-        const phi3Response = document.getElementById('phi3Response');
+        const response = document.getElementById('response');
         const intervalSelect = document.getElementById('intervalSelect');
 
         const startButton = document.getElementById('startButton');
@@ -228,20 +228,12 @@
                 document.getElementById("depthView").src = "data:image/png;base64," + detectionData.depth_b64;
 
                 if (modeSelect.value === "direct") {
-                    // Build human-friendly response
+                    // build a response without using an LLM
                     let responses = detectionData.objects.map(obj =>
                         describeObject(obj, video.videoWidth, video.videoHeight)
                     );
 
-                    // text to speech
-                    const speak = await fetch("http://localhost:5000/speak",
-                            {
-                                method: "POST",
-                                headers: { "Content-Type": "text/plain" },  // from json to plain text for text to speech
-                                body: JSON.stringify(responses)
-                            });
-
-                    phi3Response.value = responses.length > 0 ? responses.join("\n") : "No objects detected.";
+                    response.value = responses.length > 0 ? responses.join("\n") : "No objects detected.";
                 } else{
 
                 // Build LLM prompt
@@ -270,20 +262,27 @@
                     })
                 });
                 const data = await response.json();
-                phi3Response.value = data.choices[0].text.replace(/<\|.*?\|>/g, "").trim();
+                response.value = data.choices[0].text.replace(/<\|.*?\|>/g, "").trim();
             }
 
             } catch (error) {
                 console.error("Error in sendData:", error);
-                phi3Response.value = "Error: " + error.message;
+                response.value = "Error: " + error.message;
             }
-}
+
+            // text to speech
+            await fetch("http://localhost:5000/speak", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: response.value })
+            });
+        }
 
         async function initCamera() {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 video.srcObject = stream;
-                phi3Response.value = "Camera ready";
+                response.value = "Camera ready";
             } catch (err) {
                 alert("Camera access denied: " + err.message);
             }

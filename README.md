@@ -25,6 +25,9 @@ A few of things:
     - Needs to be added to PATH
 - You need some Visual Studio development tools (Desktop Development with C++ workload)
     - [Development Tools Download](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+- Install FFmpeg for Google Text to Speech (gTTS)
+    - Download [here](https://ffmpeg.org/)
+    - [Youtube Tutorial](https://www.youtube.com/watch?v=JR36oH35Fgg)
 
 Time to build from source. This configuration requires a GPU, and will take a while.
 

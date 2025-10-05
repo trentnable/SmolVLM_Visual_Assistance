@@ -1,6 +1,7 @@
+# text to speech
+from io import BytesIO
 from gtts import gTTS
-from playsound import playsound
-import tempfile
+import subprocess
 
 test = "The quick brown fox jumps over the lazy dog."
 select = 0
@@ -31,10 +32,15 @@ elif select == 5:
     print("spain")
     tts = gTTS(test, lang="en", tld='es')
 
-# Save to a temporary mp3 file
-with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-    temp_path = fp.name
-    tts.save(temp_path)
+buf = BytesIO()
+gTTS(test, lang="en", tld="co.uk").write_to_fp(buf)
+buf.seek(0)
 
-# Play it
-playsound(temp_path)
+p = subprocess.Popen(
+    [r"C:\Users\lmgre\Documents\SIU\Senior Design\pranjal_repo\SmolVLM_Visual_Assistance\FFmpeg\ffplay.exe", "-nodisp", "-autoexit", "-loglevel", "quiet", "-"],
+    stdin=subprocess.PIPE,
+)
+
+p.stdin.write(buf.read())
+p.stdin.close()
+p.wait()

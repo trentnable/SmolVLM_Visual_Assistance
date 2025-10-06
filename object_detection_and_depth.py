@@ -9,7 +9,7 @@ import sys, os
 import matplotlib.pyplot as plt
 
 # API stuff for connecting to html
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import base64
@@ -23,7 +23,12 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from gtts import gTTS
 import subprocess
 
-# import object_classification as classify
+# input classification script
+import classify
+
+# voice to text
+# import asyncio
+# import whisper
 
 app = FastAPI()
 
@@ -79,49 +84,51 @@ def get_depth_map(frame):
     depth = (output - output.min()) / (output.max() - output.min() + 1e-6)
     return depth
 
-def fuse_yolo_midas(frame):
-    """Run YOLO + MiDaS and return structured object list."""
-    median_depth = None
-    depth_map = get_depth_map(frame)
-    results = yolo_model(frame, classes=[39], verbose=False)
-    objects = []
+def fuse_yolo_midas(frame, best_index, object_name, user_request):
+    """Run classification → YOLO → MiDaS, and return structured result."""
 
+    # 2. Run depth estimation
+    depth_map = get_depth_map(frame)
+
+    # 3. Run YOLO for only the predicted class
+    results = yolo_model(frame, classes=[best_index], verbose=False)
+
+    objects = []
     for box in results[0].boxes:
         x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
         label = results[0].names[int(box.cls)]
         confidence = float(box.conf)
 
-        # compute depth crop before drawing
-        if x2 > x1 and y2 > y1:
-            depth_crop = depth_map[y1:y2, x1:x2]
-            median_depth = float(np.median(depth_crop))
-        else:
-            median_depth = None
+        # depth crop for the bounding box
+        depth_crop = depth_map[y1:y2, x1:x2]
+        median_depth = float(np.median(depth_crop)) if depth_crop.size > 0 else None
 
-        # now draw rectangle and label (with depth if available)
+        # bounding box overlay
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        text = f"{label} {median_depth:.2f}" if median_depth is not None else label
-        cv2.putText(frame, text, (x1, y1 - 5),
+        depth_label = f"{label} ({median_depth:.2f})" if median_depth else label
+        cv2.putText(frame, depth_label, (x1, y1 - 5),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        
-        cx = (x1 + x2) / 2
-        cy = (y1 + y2) / 2
-        w, h = frame.shape[1], frame.shape[0]
 
-        horizontal = "left" if cx < w/3 else "right" if cx > 2*w/3 else "center"
-        vertical   = "top" if cy < h/3 else "bottom" if cy > 2*h/3 else "middle"
-        depth_category = round(median_depth, 3) if median_depth is not None else None
-        # print(depth_category)
-        depth_category = "close" if depth_category > .6 else "far"
-        # print(depth_category)
+        # position classification
+        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+        h, w = frame.shape[:2]
+        horizontal = "left" if cx < w / 3 else "right" if cx > 2 * w / 3 else "center"
+        vertical = "top" if cy < h / 3 else "bottom" if cy > 2 * h / 3 else "middle"
+
+        distance = None
+        if median_depth is not None:
+            distance = "within arm's reach" if median_depth > 0.6 else "out of reach"
 
         objects.append({
-        "label": label,
-        "bbox": [x1, y1, x2, y2],
-        "depth_norm": median_depth,
-        "position": vertical + " " + horizontal,
-        "depth_category": depth_category
-    })
+            "label": label,
+            "bbox": [x1, y1, x2, y2],
+            "depth_norm": median_depth,
+            "position": f"{vertical} {horizontal}",
+            "depth_category": distance,
+            "classification_confidence": confidence,
+            "object_name": object_name,
+            "user_request": user_request
+        })
 
     return objects, depth_map, frame
 
@@ -137,27 +144,48 @@ def to_base64_img(img):
 async def detect(request: Request):
     data = await request.json()
     image_b64 = data.get("image")
+    user_request = data.get("text", "")
+
     if not image_b64:
         return JSONResponse(content={"error": "No image provided"}, status_code=400)
 
-    # Decode base64 → OpenCV frame
+    # Decode base64 to OpenCV frame
     image_bytes = base64.b64decode(image_b64.split(",")[1])  # strip header
     pil_img = Image.open(BytesIO(image_bytes)).convert("RGB")
     frame = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
-    objects, depth_map, frame_with_boxes = fuse_yolo_midas(frame)
+    # Interpret user's natural language query
+    best_index, best_label, confidence = classify.classify_request(user_request)
+    object_name = classify.label_texts[best_label].split(" ")[5]  # e.g. "banana"
+    print(f"Interpreted request as class {best_label} ({object_name}), confidence={confidence:.3f}")
+
+    
+    objects, depth_map, frame_with_boxes = fuse_yolo_midas(frame, best_index, object_name, user_request)
+    # print(objects)
+
+    if not objects:
+        description = f"Couldn't detect a {object_name}"
+
+    else:
+        parts = []
+        for obj in objects:
+            pos = obj.get("position", "somewhere")
+            depth_category = obj.get("depth_category","")
+            parts.append(f"{obj['label']} at the {pos} ({depth_category})")
+        description = f"{len(objects)} {objects[0]['object_name']}s detected: " + ", ".join(parts) + "."
 
     return {
         "objects": objects,
         "frame_b64": to_base64_img(frame_with_boxes),
-        "depth_b64": to_base64_img(depth_map)
+        "depth_b64": to_base64_img(depth_map),
+        "interpreted_request": user_request,
+        "spoken_response": description
     }
 
 @app.post("/speak")
 async def speak(request: Request):
     data = await request.json()
     string_to_speak = data.get("text", "")
-    tts = gTTS(string_to_speak, lang="en", tld='co.uk')
 
     buf = BytesIO()
     gTTS(string_to_speak, lang="en", tld="co.uk").write_to_fp(buf)
@@ -173,7 +201,6 @@ async def speak(request: Request):
     p.wait()
 
     return 0
-
 
 if __name__ == "__main__":
     import uvicorn

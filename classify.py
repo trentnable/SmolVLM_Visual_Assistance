@@ -104,5 +104,5 @@ def classify_request(user_text):
 
 # test
 # while True:
-#     label, score = classify_request(input())
-#     print(f"Predicted class: {label} (confidence: {score:.3f})")
+#     indexmatch, labelmatch, score = classify_request(input())
+#     print(f"Inde: {indexmatch} Predicted class: {labelmatch} (confidence: {score:.3f})")

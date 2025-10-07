@@ -29,6 +29,7 @@ import classify
 # voice to text
 # import asyncio
 # import whisper
+import string
 
 app = FastAPI()
 
@@ -112,8 +113,8 @@ def fuse_yolo_midas(frame, best_index, object_name, user_request):
         # position classification
         cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
         h, w = frame.shape[:2]
-        horizontal = "left" if cx < w / 3 else "right" if cx > 2 * w / 3 else "center"
-        vertical = "top" if cy < h / 3 else "bottom" if cy > 2 * h / 3 else "middle"
+        horizontal = "to your left" if cx < w / 3 else "to your right" if cx > 2 * w / 3 else "straight ahead"
+        vertical = "higher up" if cy < h / 3 else "down low" if cy > 2 * h / 3 else "at eye level"
 
         distance = None
         if median_depth is not None:
@@ -123,7 +124,7 @@ def fuse_yolo_midas(frame, best_index, object_name, user_request):
             "label": label,
             "bbox": [x1, y1, x2, y2],
             "depth_norm": median_depth,
-            "position": f"{vertical} {horizontal}",
+            "position": f"{vertical}, {horizontal}",
             "depth_category": distance,
             "classification_confidence": confidence,
             "object_name": object_name,
@@ -156,7 +157,7 @@ async def detect(request: Request):
 
     # Interpret user's natural language query
     best_index, best_label, confidence = classify.classify_request(user_request)
-    object_name = classify.label_texts[best_label].split(" ")[5]  # e.g. "banana"
+    object_name = classify.label_texts[best_label].split(" ")[5].strip(string.punctuation)  # e.g. "banana"
     print(f"Interpreted request as class {best_label} ({object_name}), confidence={confidence:.3f}")
 
     
@@ -164,15 +165,20 @@ async def detect(request: Request):
     # print(objects)
 
     if not objects:
-        description = f"Couldn't detect a {object_name}"
+        description = f"Couldn't detect any {object_name}s."
 
     else:
         parts = []
+        i = 1
         for obj in objects:
             pos = obj.get("position", "somewhere")
             depth_category = obj.get("depth_category","")
-            parts.append(f"{obj['label']} at the {pos} ({depth_category})")
-        description = f"{len(objects)} {objects[0]['object_name']}s detected: " + ", ".join(parts) + "."
+            parts.append(f"{obj['label']} {i} is {pos} and {depth_category}")
+            i+=1
+        if (len(objects) == 1):
+            description = f"{len(objects)} {objects[0]['object_name']} detected: " + ", ".join(parts) + "."
+        else:
+            description = f"{len(objects)} {objects[0]['object_name']}s detected: " + ", ".join(parts) + "."
 
     return {
         "objects": objects,

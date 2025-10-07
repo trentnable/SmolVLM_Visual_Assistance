@@ -1,9 +1,9 @@
-<!DOCTYPE html> <!-- tells the browser this is an HTML5 doc -->
-<html lang="en"> <!-- wraps the entire page and sets language to english -->
-<head> <!-- head contains metadata like title, character encoding, styles -->
-    <meta charset="UTF-8"> <!-- ensures text encoding supporsts all characters-->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- scales the page properly for mobile devices -->
-    <title>Visual Assistant</title> <!-- title at the top of the page -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Assistant</title>
     <style> 
         body {
             font-family: sans-serif;
@@ -118,12 +118,13 @@
 
             <div class="io-areas">
                 <div>
-                    <textarea id="instructionText" class="hidden"></textarea>
+                    <label for="instructionText">Instruction</label><br>
+                    <textarea id="instructionText" style="height: 8em; width: 40em"></textarea>
                 </div>
 
                 <div>
                     <label for="response">Response:</label><br>
-                    <textarea id="response" style="height: 20em; width: 40em" readonly></textarea>
+                    <textarea id="response" style="height: 8em; width: 40em" readonly></textarea>
                 </div>
             </div>
 
@@ -169,7 +170,7 @@
 
         const modeSelect = document.getElementById('modeSelect'); // mine
 
-        instructionText.value = "Where's my water cup?"; // hardcoded before mic input working
+        instructionText.value = "Where's my bottle?"; // hardcoded before mic input working
 
         let stream, intervalId, isProcessing = false;
 
@@ -217,6 +218,20 @@
             } catch (error) {
                 console.error("Error in sendData:", error);
                 response.value = "Error: " + error.message;
+            }
+        }
+
+        async function recordMic()
+        {
+            try
+            {
+                stream = await navigator.mediaDevices.getUserMedia({audio: true});
+                audio.srcObject = stream;
+                instructionText.value = "Speak your input.";
+            }
+            catch (err)
+            {
+                alert("Mic access denied: " + err.message);
             }
         }
 

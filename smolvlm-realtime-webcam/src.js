@@ -20,10 +20,12 @@ const video = document.getElementById('videoFeed');
             if(but.value === "start"){
                 but.value = "stop"
                 but.style="background-color: red"
+                createStream();
             }
             else if(but.value === "stop"){
                 but.value = "start"
                 but.style="background-color: rgb(115, 255, 0)"
+                stopRecording();
             }
         
         }
@@ -159,3 +161,4 @@ const video = document.getElementById('videoFeed');
         window.addEventListener('DOMContentLoaded', initCamera);
 
 
+        

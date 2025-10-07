@@ -87,21 +87,26 @@
                 <option value="http://localhost:8082">Phi-3 (8082)</option>
             </select>
         <div>
+            <br>
+            <label>Input Type: </label>
             <select id="instructionType" onchange="input()">
+                <option selected></option>
                 <option value="audio">Audio input</option>
                 <option value="text">Text input</option>
             </select>
+            <br>
         </div>
             
         </div>
-        <div id="instructionForText">
+        <div id="instructionForText" hidden>
             <label for="instructionText">Instruction:</label><br>
             <textarea id="instructionText" style="height: 2em; width: 40em"></textarea>
         </div>
-        <div id = recordButton>
+        <div id = recordButton hidden>
             <label for="button">Record Audio: </label>
             <input type = "button" id = "but" value = "start" onCLick = button() style = "background-color: rgb(115, 255, 0);">
         </div>
+
         <div>
             <label for="smolvlmResponse">SmolVLM Response:</label><br>
             <textarea id="smolvlmResponse" style="height: 4em; width: 40em" readonly></textarea>

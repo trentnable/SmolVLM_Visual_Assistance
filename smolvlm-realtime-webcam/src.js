@@ -159,6 +159,16 @@ const video = document.getElementById('videoFeed');
 
         startButton.addEventListener('click', () => isProcessing ? handleStop() : handleStart());
         window.addEventListener('DOMContentLoaded', initCamera);
+        window.addEventListener('DOMContentLoaded', initMic);
 
 
-        
+
+        async function initMic() {
+                    try {
+                        streamMic = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        Audio.srcObject = streamMic;
+                        smolvlmResponse.value = "Mic ready.";
+                    } catch (err) {
+                        alert("Mic access denied: " + err.message);
+                    }
+                }

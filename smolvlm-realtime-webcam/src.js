@@ -1,4 +1,19 @@
 
+/*
+TO-DO
+    -Figure how to record audio clip
+    -Figure out how to send data via send function (ref camera send function)
+    -
+
+
+
+
+
+
+
+*/
+
+
 
 const video = document.getElementById('videoFeed');
         const canvas = document.getElementById('canvas');
@@ -20,12 +35,12 @@ const video = document.getElementById('videoFeed');
             if(but.value === "start"){
                 but.value = "stop"
                 but.style="background-color: red"
-                createStream();
+
             }
             else if(but.value === "stop"){
                 but.value = "start"
                 but.style="background-color: rgb(115, 255, 0)"
-                stopRecording();
+
             }
         
         }

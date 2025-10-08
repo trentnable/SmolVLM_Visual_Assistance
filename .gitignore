@@ -1,8 +1,2 @@
-models
-*.png
-*.jpg
+__pycache__
 *.pt
-weights
-vision-assistant
-dependencies
-FFmpeg

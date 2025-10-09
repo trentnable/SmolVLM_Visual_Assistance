@@ -85,20 +85,3 @@ def listen_for_command(duration=5, silence_threshold=0.01):
     
     print("Processing speech...")
     return transcribe_audio(audio)
-
-
-# Example usage when run directly
-if __name__ == "__main__":
-    print("\n=== Microphone Speech Recognition Test ===\n")
-    
-    # Test recording and transcription
-    start_time = time.time()
-    
-    text = record_and_transcribe(duration=5)
-    
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    
-    print("\n--- Transcription Result ---")
-    print(f"Text: {text}")
-    print(f"\nElapsed time: {elapsed_time:.4f} seconds")

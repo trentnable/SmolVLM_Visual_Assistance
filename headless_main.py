@@ -59,6 +59,7 @@ def main():
                     print("Classifying request...")
                     out1 = int(classify_request(command))
                     print(f"Helping to locate {yolo_model.names[out1]}")
+                    print("\nStarting detection (press Ctrl+C to stop)...")
 
                     try:
                         while True:
@@ -134,18 +135,12 @@ def main():
                         elapsed_time = end_time - start_time
                         print(f"\nTotal elapsed time: {elapsed_time:.4f} seconds")
 
-                                elif mode == "two":
-                                    print("Helping with reading")
+                elif mode == "two":
+                    print("Helping with reading")
 
-                                else:
-                                    print("general mode selection error")
-
-                    
-
-                    print("\nStarting detection (press Ctrl+C to stop)...")
+                else:
+                    print("general mode selection error")
     
-    
-
 
 if __name__ == "__main__":
     main()

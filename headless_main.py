@@ -125,6 +125,8 @@ def main():
 
                         if detect > 0 // loop_time > 30:
                             task = True
+                            cv2.destroyAllWindows()
+                            cap.release()
                         
                     
                         
@@ -142,9 +144,7 @@ def main():
 
             else:
                 print("general mode selection error")
-
-            # Cleanup
-            cv2.destroyAllWindows()  
+ 
 
 
     except KeyboardInterrupt:
@@ -154,9 +154,6 @@ def main():
         end_time = time.time()
         elapsed_time = end_time - start_time
         print(f"\nTotal elapsed time: {elapsed_time:.4f} seconds")
-
-cv2.destroyAllWindows()
-cap.release()
     
 
 if __name__ == "__main__":

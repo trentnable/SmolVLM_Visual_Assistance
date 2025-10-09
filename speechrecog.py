@@ -4,12 +4,12 @@ import sounddevice as sd
 import numpy as np
 import time
 
-# Config and setup
+# Config
 MODEL_NAME = "small"
 SAMPLE_RATE = 16000
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-global model = whisper.load_model(MODEL_NAME, device=DEVICE)
-
+global model
+model = whisper.load_model(MODEL_NAME, device=DEVICE)
 
 def record_audio(duration=5):
     """

@@ -16,15 +16,6 @@ import keyboard
 
 
 def main():
-
-    # Setup webcam
-    print("Initializing webcam...")
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    
-    if not cap.isOpened():
-        print("Error: Could not open webcam")
-        return
     
     # Setup models
     print("Loading YOLO model...")
@@ -41,7 +32,6 @@ def main():
             # Initialize variables
             task = False
             detect = 0
-            loop_start = time.time()
 
             # Get mic command
             print("Awaiting 'm' press for mic")
@@ -60,11 +50,22 @@ def main():
             # Mode_1 (Locate)
             if mode == "one":
 
+                # Setup webcam
+                print("Initializing webcam...")
+                cap = cv2.VideoCapture(0)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                
+                if not cap.isOpened():
+                    print("Error: Could not open webcam")
+                    return
+
                 # Classify
                 print("Classifying request...")
                 out1 = int(classify_request(command))
                 print(f"Helping to locate {yolo_model.names[out1]}")
                 print("\nStarting detection (press Ctrl+C to stop)...")
+
+                loop_start = time.time()
 
                 while task == False:
                     # Webcam Capture

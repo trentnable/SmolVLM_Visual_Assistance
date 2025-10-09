@@ -123,7 +123,7 @@ def main():
                         print("No objects detected")
                         speak_text("No objects detected")
 
-                        if detect > 0 // loop_time > 30:
+                        if detect > 0 or loop_time > 30:
                             task = True
                             cv2.destroyAllWindows()
                             cap.release()

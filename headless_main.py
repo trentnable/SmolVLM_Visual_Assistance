@@ -131,8 +131,6 @@ def main():
             else:
                 print("general mode selection error")
 
-        elif key == 'q':
-            break
 
     except KeyboardInterrupt:
         print("\n\nStopping detection...")

@@ -44,12 +44,11 @@ def main():
             duration = 5
             print(f"Listening({duration} seconds)")
             command = listen_for_command(duration)
-            print(f"User said: {command}")
             command = "Help, I can't find my bottle"
-
+            print(f"User said: {command}")
+            
             select = "Mode Selection"
             mode = classify_request(command,select)
-            state = "Unfinished"
 
 
             # Mode_1 (Locate)
@@ -61,7 +60,7 @@ def main():
                 print(f"Helping to locate {yolo_model.names[out1]}")
                 print("\nStarting detection (press Ctrl+C to stop)...")
 
-                while state == "Unfinished":
+                while True:
                     # Webcam Capture
                     ret, frame = cap.read()
                     if not ret:

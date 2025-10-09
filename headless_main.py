@@ -34,13 +34,13 @@ def main():
             detect = 0
 
             # Get mic command
+            print("Awaiting 'm' press for mic")
             speak_text("Awaiting 'm' press for mic")
             keyboard.wait('m')
 
             duration = 5
             print(f"Listening({duration} seconds)")
             command = listen_for_command(duration)
-            command = "Help me find my water bottle."
             print(f"User said: {command}")
             
             select = "Mode Selection"
@@ -128,15 +128,20 @@ def main():
                             task = True
                             cv2.destroyAllWindows()
                             cap.release()
-                            print(f"Detect = {detect}")
-                            print(f"loop_time = {loop_time}")
+                            speak_text("Object location successful, returning to default")
+                            
                     
-                    if loop_time > 30:
+                    if loop_time > 30 and detect != 0:
                         task = True
                         cv2.destroyAllWindows()
                         cap.release()
-                        print(f"Detect = {detect}")
-                        print(f"loop_time = {loop_time}")
+                        speak_text("Object location timed out, returning to default")
+                    elif loop_time > 60 and detect == 0:
+                        task = True
+                        cv2.destroyAllWindows()
+                        cap.release()
+                        speak_text("Object location timed out, returning to default")
+                        
                     
                         
                         

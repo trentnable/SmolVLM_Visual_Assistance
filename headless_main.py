@@ -127,6 +127,8 @@ def main():
                             task = True
                             cv2.destroyAllWindows()
                             cap.release()
+                            print(f"Detect = {detect}")
+                            print(f"loop_time = {loop_time}")
                         
                     
                         

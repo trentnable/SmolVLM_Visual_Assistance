@@ -38,9 +38,13 @@ def main():
     try:
         while True:
 
-            keyboard.wait('m')
+            # Initialize variables
+            task = False
+            detect = 0
 
             # Get mic command
+            keyboard.wait('m')
+
             duration = 5
             print(f"Listening({duration} seconds)")
             command = listen_for_command(duration)
@@ -60,7 +64,7 @@ def main():
                 print(f"Helping to locate {yolo_model.names[out1]}")
                 print("\nStarting detection (press Ctrl+C to stop)...")
 
-                while True:
+                while task == False:
                     # Webcam Capture
                     ret, frame = cap.read()
                     if not ret:
@@ -92,22 +96,27 @@ def main():
                             
                             # Direction info
                         print(f"\nDirection: {vertical}, {horizontal}")
-                        speech_text += f"Direction: {vertical}, {horizontal}. "
+                        speech_text += f"Direction is {vertical}. "
                             
                         if degrees is not None:
                             print(f"Angle from center: {degrees:.1f} degrees")
-                            speech_text += f"Angle from center: {degrees:.0f} degrees. "
+                            speech_text += f", {degrees:.0f} degrees to the {horizontal}. "
                             
                         print(f"Distance: {depth_category}")
                         speech_text += f"Distance: {depth_category}."
                             
-                        # Speak the accumulated text
+                        # Speak all added text
                         speak_text(speech_text)
+
+                        #Mark as detected
+                        detect += 1
                             
                     else:
                         print("No objects detected")
-                        speech_text = "No objects detected"
-                        speak_text(speech_text)
+                        speak_text("No objects detected")
+
+                        if detect > 0:
+                            task = True
                         
                     cv2.imshow('Detection', annotated_frame)
                     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -120,9 +129,11 @@ def main():
                     #         break
                         
                     # 1 FPS
-                    time.sleep(1)
+                    time.sleep(0.1)
                         
-                
+            # Cleanup
+            cap.release()
+            cv2.destroyAllWindows()  
 
             elif mode == "two":
                 print("Helping with reading")
@@ -134,9 +145,6 @@ def main():
     except KeyboardInterrupt:
         print("\n\nStopping detection...")
     finally:
-        # Cleanup
-        cap.release()
-        cv2.destroyAllWindows()
                             
         end_time = time.time()
         elapsed_time = end_time - start_time

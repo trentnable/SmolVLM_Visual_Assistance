@@ -48,7 +48,7 @@ def main():
             print(f"User said: {command}")
             
             select = "Mode Selection"
-            mode = classify_request(command,select)
+            mode = mode_select(command)
 
 
             # Mode_1 (Locate)

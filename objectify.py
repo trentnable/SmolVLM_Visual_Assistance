@@ -137,16 +137,9 @@ label_embeddings2 = {k: get_embedding(v) for k, v in label_texts2.items()}
 
 import torch.nn.functional as F
 
-def classify_request(user_text, select):
-    if select == "Mode Selection":
-        emb = get_embedding(user_text)
-        scores = {k: F.cosine_similarity(emb, v, dim=0).item() 
-                for k, v in label_embeddings1.items()}
-        return max(scores, key=scores.get)
-    elif select == "Affirm or Deny":
-        emb = get_embedding(user_text)
-        scores = {k: F.cosine_similarity(emb, v, dim=0).item() 
-                for k, v in label_embeddings2.items()}
-        return max(scores, key=scores.get)
-    else:
-        print("Request Selection classify_request Function Error")
+def mode_select(user_text):
+    
+    emb = get_embedding(user_text)
+    scores = {k: F.cosine_similarity(emb, v, dim=0).item() 
+            for k, v in label_embeddings1.items()}
+    return max(scores, key=scores.get)

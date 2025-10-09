@@ -1,6 +1,6 @@
 import time
 start_time = time.time()
-from objectify import classify_request
+from objectify import classify_request, mode_select
 from vision import fuse_yolo_midas, to_base64_img, setup_yolo, setup_midas
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)

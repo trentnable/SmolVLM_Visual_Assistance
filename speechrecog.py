@@ -5,7 +5,7 @@ import numpy as np
 import time
 
 # Config
-MODEL_NAME = "small"
+MODEL_NAME = "tiny"
 SAMPLE_RATE = 16000
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 global model

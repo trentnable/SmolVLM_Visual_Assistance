@@ -31,14 +31,14 @@ model = whisper.load_model(MODEL_NAME, device=DEVICE)
 #     return audio.flatten()
 
 def transcribe_audio(audio):
-    # Convert float32 [-1.0, 1.0] audio to WAV file format
     audio = (audio * 32768).astype(np.int16)
-
-    # Whisper expects float32 PCM mono at 16000Hz
     audio = audio.astype(np.float32) / 32768.0
 
-    # Run transcription
+    start_time = time.time()
     result = model.transcribe(audio, fp16=(DEVICE == "cuda"))
+    end_time = time.time()
+
+    print(f"Transcription time: {end_time - start_time:.2f} seconds")
     return result["text"].strip()
 
 # def record_and_transcribe(duration=5):

@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 from speechrecog import listen_for_command
 from googleTTS import speak_text
-from getkey import keys
+from getkey import getkey, keys
 
 
 def main():

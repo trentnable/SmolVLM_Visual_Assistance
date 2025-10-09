@@ -130,16 +130,16 @@ def main():
                         
                     # 1 FPS
                     time.sleep(0.1)
-                        
-            # Cleanup
-            cap.release()
-            cv2.destroyAllWindows()  
 
             elif mode == "two":
                 print("Helping with reading")
 
             else:
                 print("general mode selection error")
+
+            # Cleanup
+            cap.release()
+            cv2.destroyAllWindows()  
 
 
     except KeyboardInterrupt:

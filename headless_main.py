@@ -34,7 +34,7 @@ def main():
             detect = 0
 
             # Get mic command
-            print("Awaiting 'm' press for mic")
+            speak_text("Awaiting 'm' press for mic")
             keyboard.wait('m')
 
             duration = 5
@@ -124,13 +124,19 @@ def main():
                         print("No objects detected")
                         speak_text("No objects detected")
 
-                        if detect > 0 or loop_time > 30:
+                        if detect > 0:
                             task = True
                             cv2.destroyAllWindows()
                             cap.release()
                             print(f"Detect = {detect}")
                             print(f"loop_time = {loop_time}")
-                        
+                    
+                    if loop_time > 30:
+                        task = True
+                        cv2.destroyAllWindows()
+                        cap.release()
+                        print(f"Detect = {detect}")
+                        print(f"loop_time = {loop_time}")
                     
                         
                         

@@ -40,7 +40,6 @@ def transcribe_audio(audio):
     Returns:
         Transcribed text string
     """
-    model = load_model()
     result = model.transcribe(audio, fp16=(DEVICE == "cuda"))
     return result["text"].strip()
 

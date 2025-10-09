@@ -44,7 +44,7 @@ def main():
             duration = 5
             print(f"Listening({duration} seconds)")
             command = listen_for_command(duration)
-            command = "Help, I can't find my bottle"
+            command = "Help me find my water bottle."
             print(f"User said: {command}")
             
             select = "Mode Selection"

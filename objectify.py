@@ -124,8 +124,8 @@ def get_embedding(text):
     return embedding
 
 label_texts1 = {
-    "one": "The request is about finding the location of an object or place.",
-    "two": "The request is about reading.",
+    "one": "The request is about finding an object or the location of an object or place.",
+    "two": "The request is about reading a menu, sign, or other words.",
 }
 label_embeddings1 = {k: get_embedding(v) for k, v in label_texts1.items()}
 

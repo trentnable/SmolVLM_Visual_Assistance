@@ -40,7 +40,7 @@ def main():
 
             key = getkey()
 
-            if key = 'm':
+            if key == 'm':
                 # Get mic command
                 duration = 5
                 print(f"Listening({duration} seconds)")

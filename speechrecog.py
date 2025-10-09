@@ -11,50 +11,48 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 global model
 model = whisper.load_model(MODEL_NAME, device=DEVICE)
 
-def record_audio(duration=5):
-    """
-    Record audio from the default microphone.
+# def record_audio(duration=5):
+#     """
+#     Record audio from the default microphone.
     
-    Args:
-        duration: Recording duration in seconds (default 5)
+#     Args:
+#         duration: Recording duration in seconds (default 5)
     
-    Returns:
-        numpy array of audio samples
-    """
-    print(f"Recording for {duration} seconds... Speak now!")
-    audio = sd.rec(int(duration * SAMPLE_RATE), 
-                   samplerate=SAMPLE_RATE, 
-                   channels=1, 
-                   dtype='float32')
-    sd.wait()  # Wait until recording is finished
-    print("Recording finished!")
-    return audio.flatten()
+#     Returns:
+#         numpy array of audio samples
+#     """
+#     print(f"Recording for {duration} seconds... Speak now!")
+#     audio = sd.rec(int(duration * SAMPLE_RATE), 
+#                    samplerate=SAMPLE_RATE, 
+#                    channels=1, 
+#                    dtype='float32')
+#     sd.wait()  # Wait until recording is finished
+#     print("Recording finished")
+#     return audio.flatten()
 
 def transcribe_audio(audio):
-    """
-    Transcribe audio buffer using Whisper.
-    
-    Args:
-        audio: numpy array of audio samples (16kHz, mono, float32)
-    
-    Returns:
-        Transcribed text string
-    """
+    # Convert float32 [-1.0, 1.0] audio to WAV file format
+    audio = (audio * 32768).astype(np.int16)
+
+    # Whisper expects float32 PCM mono at 16000Hz
+    audio = audio.astype(np.float32) / 32768.0
+
+    # Run transcription
     result = model.transcribe(audio, fp16=(DEVICE == "cuda"))
     return result["text"].strip()
 
-def record_and_transcribe(duration=5):
-    """
-    Record audio from microphone and transcribe it.
+# def record_and_transcribe(duration=5):
+#     """
+#     Record audio from microphone and transcribe it.
     
-    Args:
-        duration: Recording duration in seconds (default 5)
+#     Args:
+#         duration: Recording duration in seconds (default 5)
     
-    Returns:
-        Transcribed text string
-    """
-    audio = record_audio(duration)
-    return transcribe_audio(audio)
+#     Returns:
+#         Transcribed text string
+#     """
+#     audio = record_audio(duration)
+#     return transcribe_audio(audio)
 
 def listen_for_command(duration=5, silence_threshold=0.01):
     """

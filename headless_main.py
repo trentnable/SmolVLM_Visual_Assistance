@@ -41,8 +41,10 @@ def main():
             # Initialize variables
             task = False
             detect = 0
+            loop_start = time.time()
 
             # Get mic command
+            print("Awaiting 'm' press for mic")
             keyboard.wait('m')
 
             duration = 5
@@ -76,6 +78,12 @@ def main():
                     frame, yolo_model, midas, transform, class_id=out1
                     )
                         
+                    cv2.imshow('Detection', annotated_frame)
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+
+                    loop_time = time.time() - loop_start
+
                     # Build speech text
                     speech_text = ""
                         
@@ -103,7 +111,7 @@ def main():
                             speech_text += f", {degrees:.0f} degrees to the {horizontal}. "
                             
                         print(f"Distance: {depth_category}")
-                        speech_text += f"Distance: {depth_category}."
+                        speech_text += f"Distance is {depth_category}."
                             
                         # Speak all added text
                         speak_text(speech_text)
@@ -115,12 +123,10 @@ def main():
                         print("No objects detected")
                         speak_text("No objects detected")
 
-                        if detect > 0:
+                        if detect > 0 // loop_time > 30:
                             task = True
                         
-                    cv2.imshow('Detection', annotated_frame)
-                    if cv2.waitKey(1) & 0xFF == ord('q'):
-                        break
+                    
                         
                         
                     # while pygame.mixer.music.get_busy():
@@ -138,7 +144,6 @@ def main():
                 print("general mode selection error")
 
             # Cleanup
-            cap.release()
             cv2.destroyAllWindows()  
 
 
@@ -149,6 +154,9 @@ def main():
         end_time = time.time()
         elapsed_time = end_time - start_time
         print(f"\nTotal elapsed time: {elapsed_time:.4f} seconds")
+
+cv2.destroyAllWindows()
+cap.release()
     
 
 if __name__ == "__main__":

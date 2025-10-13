@@ -30,6 +30,14 @@ model = whisper.load_model(MODEL_NAME, device=DEVICE)
 #     print("Recording finished")
 #     return audio.flatten()
 
+def get_voice_input(duration=5):
+    """Record and transcribe voice command"""
+    print(f"Listening for {duration} seconds...")
+    command = listen_for_command(duration)
+    command = "Help me find my water bottle"
+    print(f"You said: '{command}'")
+    return command
+
 def transcribe_audio(audio):
     audio = (audio * 32768).astype(np.int16)
     audio = audio.astype(np.float32) / 32768.0

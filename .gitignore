@@ -1,8 +1,0 @@
-models
-*.png
-*.jpg
-*.pt
-weights
-vision-assistant
-dependencies
-FFmpeg

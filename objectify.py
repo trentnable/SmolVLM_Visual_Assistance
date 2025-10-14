@@ -1,114 +1,141 @@
+import re
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch.nn.functional as F
+from sentence_transformers import SentenceTransformer, util
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-print(f"Loading model on {DEVICE}...")
+# mixedbread model
+EMBED_MODEL_ID = "mixedbread-ai/mxbai-embed-large-v1"
+model = SentenceTransformer(EMBED_MODEL_ID).to(DEVICE)
 
-model_id = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-tokenizer = AutoTokenizer.from_pretrained(model_id)
-model = AutoModelForCausalLM.from_pretrained(model_id).to(DEVICE)
-model.eval()
 
-def get_embedding(text):
-    tokens = tokenizer(text, return_tensors="pt").to(DEVICE)
-    with torch.no_grad():
-        outputs = model(**tokens, output_hidden_states=True)
-        # Get last hidden state: shape [batch, seq_len, hidden_dim]
-        hidden_states = outputs.hidden_states[-1]
-        # Average pooling over the sequence dimension
-        embedding = hidden_states.mean(dim=1).squeeze().cpu()
-    return embedding
-
+# Labels
 label_texts = {
-    "0": "The request is about a person, someone nearby, or people in general. Example requests: 'Where is the person?', 'Find the man/woman/child', 'Show me where people are.'",
-    "1": "The request is about a bicycle, also called a bike or cycle. Example requests: 'Where is my bike?', 'Find the bicycle.'",
-    "2": "The request is about a car or automobile. Example requests: 'Where is my car?', 'Show me the car in the picture.'",
-    "3": "The request is about a motorcycle or motorbike. Example requests: 'Where is the motorcycle?', 'Find the motorbike.'",
-    "4": "The request is about an airplane, plane, or jet. Example requests: 'Where is the airplane?', 'Find the plane in the sky.'",
-    "5": "The request is about a bus, such as a city bus or school bus. Example requests: 'Where is the bus?', 'Find the school bus.'",
-    "6": "The request is about a train or locomotive. Example requests: 'Where is the train?', 'Show me the train.'",
-    "7": "The request is about a truck, lorry, or pickup. Example requests: 'Where is the truck?', 'Find the pickup truck.'",
-    "8": "The request is about a boat, ship, or watercraft. Example requests: 'Where is the boat?', 'Find the ship on the water.'",
-    "9": "The request is about a traffic light or stoplight. Example requests: 'Where is the traffic light?', 'Show me the stoplight.'",
-    "10": "The request is about a fire hydrant, often seen on streets. Example requests: 'Where is the hydrant?', 'Find the fire hydrant.'",
-    "11": "The request is about a stop sign. Example requests: 'Where is the stop sign?', 'Show me the stop sign on the road.'",
-    "12": "The request is about a parking meter. Example requests: 'Where is the parking meter?', 'Find the meter for parking.'",
-    "13": "The request is about a bench, such as a park bench. Example requests: 'Where is the bench?', 'Find a place to sit.'",
-    "14": "The request is about a bird. Example requests: 'Where is the bird?', 'Show me the bird flying or sitting.'",
-    "15": "The request is about a cat or kitten. Example requests: 'Where is the cat?', 'Find my kitty.'",
-    "16": "The request is about a dog or puppy. Example requests: 'Where is the dog?', 'Find my puppy.'",
-    "17": "The request is about a horse. Example requests: 'Where is the horse?', 'Find the horse in the field.'",
-    "18": "The request is about a sheep or lamb. Example requests: 'Where is the sheep?', 'Find the lamb.'",
-    "19": "The request is about a cow. Example requests: 'Where is the cow?', 'Find the cow in the field.'",
-    "20": "The request is about an elephant. Example requests: 'Where is the elephant?', 'Find the elephant in the zoo.'",
-    "21": "The request is about a bear. Example requests: 'Where is the bear?', 'Find the bear in the picture.'",
-    "22": "The request is about a zebra. Example requests: 'Where is the zebra?', 'Find the striped animal.'",
-    "23": "The request is about a giraffe. Example requests: 'Where is the giraffe?', 'Find the tall animal with a long neck.'",
-    "24": "The request is about a backpack, rucksack, or school bag. Example requests: 'Where is my backpack?', 'Find the bag I carry on my back.'",
-    "25": "The request is about an umbrella. Example requests: 'Where is the umbrella?', 'Find the thing for rain.'",
-    "26": "The request is about a handbag, purse, or bag. Example requests: 'Where is my purse?', 'Find the handbag.'",
-    "27": "The request is about a tie or necktie. Example requests: 'Where is the tie?', 'Find the necktie.'",
-    "28": "The request is about a suitcase or luggage. Example requests: 'Where is my suitcase?', 'Find the luggage bag.'",
-    "29": "The request is about a frisbee or flying disc. Example requests: 'Where is the frisbee?', 'Find the flying disc.'",
-    "30": "The request is about skis. Example requests: 'Where are the skis?', 'Find the ski equipment.'",
-    "31": "The request is about a snowboard. Example requests: 'Where is the snowboard?', 'Find the snow board for winter sports.'",
-    "32": "The request is about a sports ball, like soccer ball, basketball, or football. Example requests: 'Where is the ball?', 'Find the sports ball.'",
-    "33": "The request is about a kite. Example requests: 'Where is the kite?', 'Find the kite flying.'",
-    "34": "The request is about a baseball bat. Example requests: 'Where is the bat?', 'Find the baseball bat.'",
-    "35": "The request is about a baseball glove or mitt. Example requests: 'Where is the glove?', 'Find the baseball mitt.'",
-    "36": "The request is about a skateboard. Example requests: 'Where is the skateboard?', 'Find the board for skating.'",
-    "37": "The request is about a surfboard. Example requests: 'Where is the surfboard?', 'Find the board for surfing.'",
-    "38": "The request is about a tennis racket. Example requests: 'Where is the tennis racket?', 'Find the racket.'",
-    "39": "The request is about a bottle, such as a water bottle. Example requests: 'Where is my bottle?', 'Find the drink bottle.'",
-    "40": "The request is about a wine glass. Example requests: 'Where is the wine glass?', 'Find the glass for wine.'",
-    "41": "The request is about a cup or mug. Example requests: 'Where is my cup?', 'Find the coffee mug.'",
-    "42": "The request is about a fork. Example requests: 'Where is the fork?', 'Find the eating utensil.'",
-    "43": "The request is about a knife. Example requests: 'Where is the knife?', 'Find the kitchen knife.'",
-    "44": "The request is about a spoon. Example requests: 'Where is the spoon?', 'Find the spoon for eating.'",
-    "45": "The request is about a bowl. Example requests: 'Where is the bowl?', 'Find the soup bowl.'",
-    "46": "The request is about a banana. Example requests: 'Where is the banana?', 'Find the fruit.'",
-    "47": "The request is about an apple. Example requests: 'Where is the apple?', 'Find the fruit.'",
-    "48": "The request is about a sandwich. Example requests: 'Where is the sandwich?', 'Find my food.'",
-    "49": "The request is about an orange. Example requests: 'Where is the orange?', 'Find the orange fruit.'",
-    "50": "The request is about broccoli. Example requests: 'Where is the broccoli?', 'Find the green vegetable.'",
-    "51": "The request is about a carrot. Example requests: 'Where is the carrot?', 'Find the orange vegetable.'",
-    "52": "The request is about a hot dog. Example requests: 'Where is the hot dog?', 'Find the sausage in a bun.'",
-    "53": "The request is about pizza. Example requests: 'Where is the pizza?', 'Find the slice of pizza.'",
-    "54": "The request is about a donut. Example requests: 'Where is the donut?', 'Find the doughnut snack.'",
-    "55": "The request is about a cake. Example requests: 'Where is the cake?', 'Find the birthday cake.'",
-    "56": "The request is about a chair. Example requests: 'Where is the chair?', 'Find a place to sit.'",
-    "57": "The request is about a couch or sofa. Example requests: 'Where is the couch?', 'Find the sofa.'",
-    "58": "The request is about a potted plant or houseplant. Example requests: 'Where is the plant?', 'Find the potted plant.'",
-    "59": "The request is about a bed. Example requests: 'Where is the bed?', 'Find the bed in the room.'",
-    "60": "The request is about a dining table. Example requests: 'Where is the dining table?', 'Find the table for eating.'",
-    "61": "The request is about a toilet. Example requests: 'Where is the toilet?', 'Find the bathroom toilet.'",
-    "62": "The request is about a TV, television, or screen. Example requests: 'Where is the TV?', 'Find the television.'",
-    "63": "The request is about a laptop computer. Example requests: 'Where is my laptop?', 'Find the computer.'",
-    "64": "The request is about a computer mouse (not the animal). Example requests: 'Where is my mouse?', 'Find the computer mouse.'",
-    "65": "The request is about a remote control. Example requests: 'Where is the remote?', 'Find the TV controller.'",
-    "66": "The request is about a keyboard for a computer. Example requests: 'Where is the keyboard?', 'Find the typing keyboard.'",
-    "67": "The request is about a cell phone, smartphone, or mobile phone. Example requests: 'Where is my phone?', 'Find the smartphone.'",
-    "68": "The request is about a microwave oven. Example requests: 'Where is the microwave?', 'Find the microwave oven.'",
-    "69": "The request is about an oven or stove oven. Example requests: 'Where is the oven?', 'Find the kitchen oven.'",
-    "70": "The request is about a toaster. Example requests: 'Where is the toaster?', 'Find the bread toaster.'",
-    "71": "The request is about a sink, such as a kitchen sink. Example requests: 'Where is the sink?', 'Find the bathroom sink.'",
-    "72": "The request is about a refrigerator or fridge. Example requests: 'Where is the fridge?', 'Find the refrigerator.'",
-    "73": "The request is about a book. Example requests: 'Where is the book?', 'Find my reading book.'",
-    "74": "The request is about a clock. Example requests: 'Where is the clock?', 'Find the wall clock.'",
-    "75": "The request is about a vase. Example requests: 'Where is the vase?', 'Find the flower vase.'",
-    "76": "The request is about scissors. Example requests: 'Where are the scissors?', 'Find the cutting scissors.'",
-    "77": "The request is about a teddy bear or stuffed toy. Example requests: 'Where is the teddy bear?', 'Find the stuffed animal.'",
-    "78": "The request is about a hair drier or blow dryer. Example requests: 'Where is the hair dryer?', 'Find the blow dryer.'",
-    "79": "The request is about a toothbrush. Example requests: 'Where is the toothbrush?', 'Find the brush for teeth.'"
+    "0": "COCO object class: person,human,man,woman,child",
+    "1": "COCO object class: bicycle,bike",
+    "2": "COCO object class: car,automobile,vehicle",
+    "3": "COCO object class: motorcycle,motorbike",
+    "4": "COCO object class: airplane,plane,jet",
+    "5": "COCO object class: bus",
+    "6": "COCO object class: train,locomotive",
+    "7": "COCO object class: truck,pickup,lorry",
+    "8": "COCO object class: boat,ship,vessel",
+    "9": "COCO object class: traffic light,street light",
+    "10": "COCO object class: fire hydrant,hydrant",
+    "11": "COCO object class: stop sign",
+    "12": "COCO object class: parking meter",
+    "13": "COCO object class: bench,park bench",
+    "14": "COCO object class: bird",
+    "15": "COCO object class: cat,feline",
+    "16": "COCO object class: dog,canine",
+    "17": "COCO object class: horse",
+    "18": "COCO object class: sheep,lamb",
+    "19": "COCO object class: cow,cattle",
+    "20": "COCO object class: elephant",
+    "21": "COCO object class: bear",
+    "22": "COCO object class: zebra",
+    "23": "COCO object class: giraffe",
+    "24": "COCO object class: backpack",
+    "25": "COCO object class: umbrella",
+    "26": "COCO object class: handbag",
+    "27": "COCO object class: tie",
+    "28": "COCO object class: suitcase",
+    "29": "COCO object class: frisbee",
+    "30": "COCO object class: skis",
+    "31": "COCO object class: snowboard",
+    "32": "COCO object class: sports ball",
+    "33": "COCO object class: kite",
+    "34": "COCO object class: baseball bat",
+    "35": "COCO object class: baseball glove",
+    "36": "COCO object class: skateboard",
+    "37": "COCO object class: surfboard",
+    "38": "COCO object class: tennis racket",
+    "39": "COCO object class: bottle",
+    "40": "COCO object class: wine glass",
+    "41": "COCO object class: cup",
+    "42": "COCO object class: fork",
+    "43": "COCO object class: knife",
+    "44": "COCO object class: spoon",
+    "45": "COCO object class: bowl",
+    "46": "COCO object class: banana",
+    "47": "COCO object class: apple",
+    "48": "COCO object class: sandwich",
+    "49": "COCO object class: orange",
+    "50": "COCO object class: broccoli",
+    "51": "COCO object class: carrot",
+    "52": "COCO object class: hot dog",
+    "53": "COCO object class: pizza",
+    "54": "COCO object class: donut",
+    "55": "COCO object class: cake",
+    "56": "COCO object class: chair",
+    "57": "COCO object class: couch",
+    "58": "COCO object class: potted plant",
+    "59": "COCO object class: bed",
+    "60": "COCO object class: dining table",
+    "61": "COCO object class: toilet",
+    "62": "COCO object class: TV",
+    "63": "COCO object class: laptop",
+    "64": "COCO object class: mouse",
+    "65": "COCO object class: remote",
+    "66": "COCO object class: keyboard",
+    "67": "COCO object class: cell phone",
+    "68": "COCO object class: microwave",
+    "69": "COCO object class: oven",
+    "70": "COCO object class: toaster",
+    "71": "COCO object class: sink",
+    "72": "COCO object class: refrigerator",
+    "73": "COCO object class: book",
+    "74": "COCO object class: clock",
+    "75": "COCO object class: vase",
+    "76": "COCO object class: scissors",
+    "77": "COCO object class: teddy bear",
+    "78": "COCO object class: hair drier",
+    "79": "COCO object class: toothbrush"
 }
 
-label_embeddings = {k: get_embedding(v) for k, v in label_texts.items()}
+
+
+label_embeddings = {k: model.encode(v,convert_to_tensor=True,normalize_embeddings=True,device=DEVICE)
+                    for k,v in label_texts.items()}
+
+
+def normalize(text):
+    """Lowercase,remove punctuation"""
+    return re.sub(r'[^a-zA-Z0-9 ]+','',text.lower()).strip()
+
+def exact_keyword_match(user_text):
+    text = normalize(user_text)
+    for k,v in label_texts.items():
+        keywords = [kw.strip() for kw in v.lower().replace("coco object class:","").split(",")]
+        for kw in keywords:
+            kw = normalize(kw)
+            if kw in text:
+                return k
+    return None
+
 
 def classify_request(user_text):
+    # exact keyword match
+    match = exact_keyword_match(user_text)
+    if match:
+        return match
 
-      emb = get_embedding(user_text)
-      scores = {k: F.cosine_similarity(emb, v, dim=0).item() 
-              for k, v in label_embeddings.items()}
-      return max(scores, key=scores.get)
+    # fallback to embedding similarity
+    emb = model.encode(user_text,convert_to_tensor=True,normalize_embeddings=True,device=DEVICE)
+    scores = {k: util.cos_sim(emb,v).item() for k,v in label_embeddings.items()}
+    return max(scores,key=scores.get)
+
+
+label_texts_mode = {
+    "one": "find or locate a physical object or person from COCO classes",
+    "two": "read or interpret written text,signs,or labels"
+}
+
+label_embeddings_mode = {k: model.encode(v,convert_to_tensor=True,normalize_embeddings=True,device=DEVICE)
+                         for k,v in label_texts_mode.items()}
+
+def mode_select(user_text):
+    emb = model.encode(user_text,convert_to_tensor=True,normalize_embeddings=True,device=DEVICE)
+    scores = {k: util.cos_sim(emb,v).item() for k,v in label_embeddings_mode.items()}
+    return max(scores,key=scores.get)

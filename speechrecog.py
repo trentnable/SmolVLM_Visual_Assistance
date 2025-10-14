@@ -5,66 +5,61 @@ import numpy as np
 import time
 
 # Config
-MODEL_NAME = "small"
+MODEL_NAME = "tiny"
 SAMPLE_RATE = 16000
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+global model
+model = whisper.load_model(MODEL_NAME, device=DEVICE)
 
-# Global model variable (load once)
-model = None
-
-def load_model():
-    """Load Whisper model once and cache it."""
-    global model
-    if model is None:
-        print(f"Loading Whisper model '{MODEL_NAME}' on {DEVICE}...")
-        model = whisper.load_model(MODEL_NAME, device=DEVICE)
-    return model
-
-def record_audio(duration=5):
-    """
-    Record audio from the default microphone.
+# def record_audio(duration=5):
+#     """
+#     Record audio from the default microphone.
     
-    Args:
-        duration: Recording duration in seconds (default 5)
+#     Args:
+#         duration: Recording duration in seconds (default 5)
     
-    Returns:
-        numpy array of audio samples
-    """
-    print(f"Recording for {duration} seconds... Speak now!")
-    audio = sd.rec(int(duration * SAMPLE_RATE), 
-                   samplerate=SAMPLE_RATE, 
-                   channels=1, 
-                   dtype='float32')
-    sd.wait()  # Wait until recording is finished
-    print("Recording finished!")
-    return audio.flatten()
+#     Returns:
+#         numpy array of audio samples
+#     """
+#     print(f"Recording for {duration} seconds... Speak now!")
+#     audio = sd.rec(int(duration * SAMPLE_RATE), 
+#                    samplerate=SAMPLE_RATE, 
+#                    channels=1, 
+#                    dtype='float32')
+#     sd.wait()  # Wait until recording is finished
+#     print("Recording finished")
+#     return audio.flatten()
+
+def get_voice_input(duration=5):
+    """Record and transcribe voice command"""
+    print(f"Listening for {duration} seconds...")
+    command = listen_for_command(duration)
+    print(f"You said: '{command}'")
+    return command
 
 def transcribe_audio(audio):
-    """
-    Transcribe audio buffer using Whisper.
-    
-    Args:
-        audio: numpy array of audio samples (16kHz, mono, float32)
-    
-    Returns:
-        Transcribed text string
-    """
-    model = load_model()
+    audio = (audio * 32768).astype(np.int16)
+    audio = audio.astype(np.float32) / 32768.0
+
+    start_time = time.time()
     result = model.transcribe(audio, fp16=(DEVICE == "cuda"))
+    end_time = time.time()
+
+    print(f"Transcription time: {end_time - start_time:.2f} seconds")
     return result["text"].strip()
 
-def record_and_transcribe(duration=5):
-    """
-    Record audio from microphone and transcribe it.
+# def record_and_transcribe(duration=5):
+#     """
+#     Record audio from microphone and transcribe it.
     
-    Args:
-        duration: Recording duration in seconds (default 5)
+#     Args:
+#         duration: Recording duration in seconds (default 5)
     
-    Returns:
-        Transcribed text string
-    """
-    audio = record_audio(duration)
-    return transcribe_audio(audio)
+#     Returns:
+#         Transcribed text string
+#     """
+#     audio = record_audio(duration)
+#     return transcribe_audio(audio)
 
 def listen_for_command(duration=5, silence_threshold=0.01):
     """
@@ -95,20 +90,3 @@ def listen_for_command(duration=5, silence_threshold=0.01):
     
     print("Processing speech...")
     return transcribe_audio(audio)
-
-
-# Example usage when run directly
-if __name__ == "__main__":
-    print("\n=== Microphone Speech Recognition Test ===\n")
-    
-    # Test recording and transcription
-    start_time = time.time()
-    
-    text = record_and_transcribe(duration=5)
-    
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    
-    print("\n--- Transcription Result ---")
-    print(f"Text: {text}")
-    print(f"\nElapsed time: {elapsed_time:.4f} seconds")

@@ -106,15 +106,12 @@ def normalize(text):
 
 def exact_keyword_match(user_text):
     text = normalize(user_text)
-    print(f"Normalized input: '{text}'")
     for k,v in label_texts.items():
         keywords = [kw.strip() for kw in v.lower().replace("coco object class:","").split(",")]
         for kw in keywords:
             kw = normalize(kw)
             if kw in text:
-                print(f"MATCH FOUND: label {k}, keyword '{kw}'")
                 return k
-    print("No match found")
     return None
 
 

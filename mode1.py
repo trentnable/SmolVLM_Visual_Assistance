@@ -93,7 +93,7 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, target_label):
         
         # Timeout conditions
         elapsed = time.time() - loop_start
-        if (detection_count > 0 and elapsed > 30) or (detection_count == 0 and elapsed > 60):
+        if (detection_count > 0 and objects and elapsed > 20) or (detection_count == 0 and elapsed > 60) or (detection_count > 0 and not objects):
             status = "completed" if detection_count > 0 else "timed out"
             print(f"\nDetection {status}")
             speak_text(f"Detection {status}")
@@ -151,7 +151,7 @@ def object_location(yolo_model, midas, transform, command):
     class_id = int(classify_request(command))
     target_label = yolo_model.names[class_id]
     
-    print(f"Target: {target_label}")
+    print(f"Locating {target_label}")
     speak_text(f"Locating {target_label}")
     
     # Run detection

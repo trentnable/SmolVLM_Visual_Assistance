@@ -70,10 +70,9 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, target_label):
     
     loop_start = time.time()
     detection_count = 0
-    detect = True
     significant_change = False
-    depth_initial = 0
-    position_initial = 0, 0
+    depth_current = 0
+    position_current = 0, 0
     
     while not state.stop_requested.is_set():
         ret, frame = cap.read()
@@ -89,8 +88,7 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, target_label):
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-        if detect:
-            significant_change, depth_initial, position_initial = change_detection(bbox, depth_initial, position_initial)
+        significant_change, delta_x, delta_y, delta_depth, depth_current, position_current = change_detection(bbox, depth_current, position_current)
 
         # Report findings
         if (objects and significant_change) or (objects and detection_count == 0):
@@ -98,41 +96,54 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, target_label):
             speech = build_detection_speech(objects, degrees, horizontal, vertical, depth_category)
             print_results(objects, degrees, horizontal, vertical, depth_category)
             speak_text(speech)
-            detect = True
-        else:
-            detect = False
-        
-        time.sleep(0.1)
+            depth_initial, position_initial = initial_change_states(bbox)
+
+        time.sleep(1)
     
     state.in_detection = False
     cv2.destroyAllWindows()
     cap.release()
 
-def change_detection(bbox, depth_initial = 0, position_initial = [0, 0]):
-    """Update positional and depth values to determine if object has moved significantly"""
+def change_detection(bbox, depth_initial, position_initial):
+    """Detects changes in x, y, and depth position between object location events"""
     x1, y1, x2, y2 = bbox
 
-    # Positional Change
     mx, my = (x1 + x2) / 2, (y1 + y2) / 2
-    xpos_change = mx - position_initial[0]
-    ypos_change = my - position_initial[1]
+    depth_current = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-    # Depth Change
-    depth_length = math.sqrt(pow((x2 - x1), 2) + pow((y2 - y1), 2))
-    depth_change = depth_length - depth_initial
+    delta_x = abs(mx - position_initial[0])
+    delta_y = abs(my - position_initial[1])
+    delta_depth = abs(depth_current - depth_initial)
 
-    # Report if change is significant
-    if depth_change > (0.5 * depth_initial):
+    # Significant change thresholds
+    position_threshold = 0.1 * depth_current  
+    depth_threshold = 0.25 * depth_initial 
+
+    if delta_x > position_threshold:
         significant_change = True
-    elif xpos_change > (2 * position_initial[0]) or ypos_change > (2 * position_initial[1]):
+        print("Change in X")
+    elif delta_y > position_threshold:
         significant_change = True
+        print("Change in Y")
+    elif delta_depth > depth_threshold:
+        significant_change = True
+        print("Change in depth")
     else:
         significant_change = False
 
-    position_initial = mx, my
-    depth_initial = depth_length
+    position_current = (mx, my)
 
-    return significant_change, depth_initial, position_initial
+    return significant_change, delta_x, delta_y, delta_depth, depth_current, position_current
+
+
+def initial_change_states(bbox):
+    """Update initial conditions of for remote changing"""
+    x1, y1, x2, y2 = bbox
+    mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+    depth_initial = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+    position_initial = (mx, my)
+
+    return depth_initial, position_initial
 
 
 def build_detection_speech(objects, degrees, horizontal, vertical, depth_category):

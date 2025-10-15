@@ -2,6 +2,7 @@ import time
 import threading
 import keyboard
 import cv2
+import math
 
 from objectify import classify_request, mode_select
 from vision import fuse_yolo_midas, setup_yolo, setup_midas
@@ -69,6 +70,10 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, target_label):
     
     loop_start = time.time()
     detection_count = 0
+    detect = True
+    significant_change = False
+    depth_initial = 0
+    position_initial = 0, 0
     
     while not state.stop_requested.is_set():
         ret, frame = cap.read()
@@ -77,33 +82,57 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, target_label):
             break
         
         # Run detection
-        objects, _, annotated_frame, degrees, horizontal, vertical, depth_category = \
+        objects, _, annotated_frame, degrees, horizontal, vertical, depth_category, bbox = \
             fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=class_id)
         
         cv2.imshow('Detection', annotated_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-        
+
+        if detect:
+            significant_change, depth_initial, position_initial = change_detection(bbox, depth_initial, position_initial)
+
         # Report findings
-        if objects:
+        if (objects and significant_change) or (objects and detection_count == 0):
             detection_count += 1
             speech = build_detection_speech(objects, degrees, horizontal, vertical, depth_category)
             print_results(objects, degrees, horizontal, vertical, depth_category)
             speak_text(speech)
-        
-        # Timeout conditions
-        elapsed = time.time() - loop_start
-        if (detection_count > 0 and elapsed > 20) or (detection_count == 0 and elapsed > 60):
-            status = "completed" if detection_count > 0 else "timed out"
-            print(f"\nDetection {status}")
-            speak_text(f"Detection {status}")
-            break
+            detect = True
+        else:
+            detect = False
         
         time.sleep(0.1)
     
     state.in_detection = False
     cv2.destroyAllWindows()
     cap.release()
+
+def change_detection(bbox, depth_initial = 0, position_initial = [0, 0]):
+    """Update positional and depth values to determine if object has moved significantly"""
+    x1, y1, x2, y2 = bbox
+
+    # Positional Change
+    mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+    xpos_change = mx - position_initial[0]
+    ypos_change = my - position_initial[1]
+
+    # Depth Change
+    depth_length = math.sqrt(pow((x2 - x1), 2) + pow((y2 - y1), 2))
+    depth_change = depth_length - depth_initial
+
+    # Report if change is significant
+    if depth_change > (0.5 * depth_initial):
+        significant_change = True
+    elif xpos_change > (2 * position_initial[0]) or ypos_change > (2 * position_initial[1]):
+        significant_change = True
+    else:
+        significant_change = False
+
+    position_initial = mx, my
+    depth_initial = depth_length
+
+    return significant_change, depth_initial, position_initial
 
 
 def build_detection_speech(objects, degrees, horizontal, vertical, depth_category):

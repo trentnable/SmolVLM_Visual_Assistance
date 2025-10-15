@@ -59,6 +59,7 @@ def fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=None):
         x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
         label = results[0].names[int(box.cls)]
         confidence = float(box.conf)
+        bbox = [x1, y1, x2, y2]
 
         # Depth calculation for object
         if x2 > x1 and y2 > y1:
@@ -126,6 +127,7 @@ def fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=None):
     horizontal = "center"
     vertical = "in the middle"
     depth_category = "unknown distance"
+    bbox = [0,0,0,0]
 
     # Use first detected object for overall values
     if objects:
@@ -133,8 +135,9 @@ def fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=None):
         horizontal = objects[0]["horizontal"]
         vertical = objects[0]["vertical"]
         depth_category = objects[0]["depth_category"]
+        bbox = objects[0]["bbox"]
 
-    return objects, depth_map, frame, degrees, horizontal, vertical, depth_category
+    return objects, depth_map, frame, degrees, horizontal, vertical, depth_category, bbox
 
 
 # convert image to base64

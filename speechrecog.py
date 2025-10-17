@@ -34,7 +34,7 @@ def get_voice_input(duration=5):
     """Record and transcribe voice command"""
     print(f"Listening for {duration} seconds...")
     command = listen_for_command(duration)
-    # command = "Help me find my cell phone"
+    command = "Help me find my bottle and bottle"
     print(f"You said: '{command}'")
     return command
 

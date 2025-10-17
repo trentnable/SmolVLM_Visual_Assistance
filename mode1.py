@@ -60,13 +60,13 @@ def reset_state():
     state.in_detection = False
     
 
-def detection_loop(cap, yolo_model, midas, transform, class_id, target_label):
+def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string):
     """Main detection loop for Mode 1"""
 
     state.in_detection = True
     state.stop_requested.clear()
     
-    print(f"\nDetecting {target_label}. Press 'm' to stop.")
+    print(f"\nDetecting {class_name_string}. Press 'm' to stop.")
     
     loop_start = time.time()
     detection_count = 0
@@ -88,7 +88,7 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, target_label):
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-        significant_change, delta_x, delta_y, delta_depth, depth_current, position_current = change_detection(bbox, depth_current, position_current)
+        significant_change, delta_x, delta_y, delta_depth, depth_initial = change_detection(bbox, depth_current, position_current)
 
         # Report findings
         if (objects and significant_change) or (objects and detection_count == 0):
@@ -96,53 +96,50 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, target_label):
             speech = build_detection_speech(objects, degrees, horizontal, vertical, depth_category)
             print_results(objects, degrees, horizontal, vertical, depth_category)
             speak_text(speech)
-            depth_initial, position_initial = initial_change_states(bbox)
+            depth_current, position_current = initial_change_states(bbox)
 
-        time.sleep(1)
+        time.sleep(0.1)
     
     state.in_detection = False
     cv2.destroyAllWindows()
     cap.release()
 
-def change_detection(bbox, depth_initial, position_initial):
+def change_detection(bbox, depth_prev, position_prev):
     """Detects changes in x, y, and depth position between object location events"""
     x1, y1, x2, y2 = bbox
 
+    # Current values
     mx, my = (x1 + x2) / 2, (y1 + y2) / 2
-    depth_current = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+    depth_initial = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-    delta_x = abs(mx - position_initial[0])
-    delta_y = abs(my - position_initial[1])
-    delta_depth = abs(depth_current - depth_initial)
+    # Differences from previous
+    delta_x = abs(mx - position_prev[0])
+    delta_y = abs(my - position_prev[1])
+    delta_depth = abs(depth_initial - depth_prev)
 
-    # Significant change thresholds
-    position_threshold = 0.1 * depth_current  
-    depth_threshold = 0.25 * depth_initial 
+    # Change thresholds
+    position_threshold = 50   # pixels
+    depth_threshold = 0.2 * depth_prev  # 20% change in apparent size
 
+    significant_change = False
     if delta_x > position_threshold:
-        significant_change = True
         print("Change in X")
-    elif delta_y > position_threshold:
         significant_change = True
+    if delta_y > position_threshold:
         print("Change in Y")
-    elif delta_depth > depth_threshold:
         significant_change = True
+    if delta_depth > depth_threshold:
         print("Change in depth")
-    else:
-        significant_change = False
+        significant_change = True
 
-    position_current = (mx, my)
-
-    return significant_change, delta_x, delta_y, delta_depth, depth_current, position_current
-
+    return significant_change, delta_x, delta_y, delta_depth, depth_initial
 
 def initial_change_states(bbox):
-    """Update initial conditions of for remote changing"""
+    """Compute initial depth and position"""
     x1, y1, x2, y2 = bbox
     mx, my = (x1 + x2) / 2, (y1 + y2) / 2
     depth_initial = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
     position_initial = (mx, my)
-
     return depth_initial, position_initial
 
 
@@ -165,7 +162,8 @@ def print_results(objects, degrees, horizontal, vertical, depth_category):
     """Print detection details to console"""
     print(f"\nFound {len(objects)} object(s)")
     for i, obj in enumerate(objects, 1):
-        print(f"  [{i}] {obj['label']}")
+        class_name_int = ", ".join(obj["label"]) if isinstance(obj["label"], (list, tuple)) else str(obj["label"])
+        print(f"  [{i}] {class_name_int}")
         print(f"      Position: {obj['position']}")
         print(f"      Distance: {obj['depth_category']}")
         if obj['degrees'] is not None:
@@ -188,11 +186,12 @@ def object_location(yolo_model, midas, transform, command):
         return
     
     # Classify target object
-    class_id = int(classify_request(command))
-    target_label = yolo_model.names[class_id]
+    class_id = classify_request(command)
+    class_name_string = [yolo_model.names[int(i)] for i in class_id]
     
-    print(f"Locating {target_label}")
-    speak_text(f"Locating {target_label}")
+    
+    print(f"Locating {class_name_string}")
+    speak_text(f"Locating {class_name_string}")
     
     # Run detection
-    detection_loop(cap, yolo_model, midas, transform, class_id, target_label)
+    detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string)

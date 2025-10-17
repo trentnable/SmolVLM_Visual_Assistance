@@ -50,7 +50,19 @@ def get_depth_map(frame, midas, transform):
 def fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=None):
     """Run YOLO detection + depth estimation. Returns objects, depth_map, frame with boxes."""
     depth_map = get_depth_map(frame, midas, transform)
-    results = yolo_model(frame, classes=[class_id] if class_id is not None else None, verbose=False)
+    
+    # Ensure class_id is always a list of integers or None
+    if class_id is not None:
+        # If it's a single value (string, int, float), wrap it in a list
+        if isinstance(class_id, (str, int, float)):
+            class_id = [int(class_id)]
+        # If it's a list/tuple, convert each element to int
+        elif isinstance(class_id, (list, tuple)):
+            class_id = [int(c) for c in class_id]
+        else:
+            raise TypeError(f"Unexpected class_id type: {type(class_id)}")
+
+    results = yolo_model(frame, classes=class_id, verbose=False)
 
     objects = []
     frame_height, frame_width = frame.shape[:2]

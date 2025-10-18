@@ -2,6 +2,7 @@ import time
 import threading
 import keyboard
 import cv2
+import math
 
 from objectify import classify_request, mode_select
 from vision import fuse_yolo_midas, setup_yolo, setup_midas
@@ -59,16 +60,19 @@ def reset_state():
     state.in_detection = False
     
 
-def detection_loop(cap, yolo_model, midas, transform, class_id, target_label):
+def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string):
     """Main detection loop for Mode 1"""
 
     state.in_detection = True
     state.stop_requested.clear()
     
-    print(f"\nDetecting {target_label}. Press 'm' to stop.")
+    print(f"\nDetecting {class_name_string}. Press 'm' to stop.")
     
     loop_start = time.time()
     detection_count = 0
+    significant_change = False
+    depth_current = 0
+    position_current = 0, 0
     
     while not state.stop_requested.is_set():
         ret, frame = cap.read()
@@ -77,33 +81,66 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, target_label):
             break
         
         # Run detection
-        objects, _, annotated_frame, degrees, horizontal, vertical, depth_category = \
+        objects, _, annotated_frame, degrees, horizontal, vertical, depth_category, bbox = \
             fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=class_id)
         
         cv2.imshow('Detection', annotated_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-        
+
+        significant_change, delta_x, delta_y, delta_depth, depth_initial = change_detection(bbox, depth_current, position_current)
+
         # Report findings
-        if objects:
+        if (objects and significant_change) or (objects and detection_count == 0):
             detection_count += 1
             speech = build_detection_speech(objects, degrees, horizontal, vertical, depth_category)
             print_results(objects, degrees, horizontal, vertical, depth_category)
             speak_text(speech)
-        
-        # Timeout conditions
-        elapsed = time.time() - loop_start
-        if (detection_count > 0 and elapsed > 30) or (detection_count == 0 and elapsed > 60):
-            status = "completed" if detection_count > 0 else "timed out"
-            print(f"\nDetection {status}")
-            speak_text(f"Detection {status}")
-            break
-        
+            depth_current, position_current = initial_change_states(bbox)
+
         time.sleep(0.1)
     
     state.in_detection = False
     cv2.destroyAllWindows()
     cap.release()
+
+def change_detection(bbox, depth_prev, position_prev):
+    """Detects changes in x, y, and depth position between object location events"""
+    x1, y1, x2, y2 = bbox
+
+    # Current values
+    mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+    depth_initial = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+    # Differences from previous
+    delta_x = abs(mx - position_prev[0])
+    delta_y = abs(my - position_prev[1])
+    delta_depth = abs(depth_initial - depth_prev)
+
+    # Change thresholds
+    position_threshold = 50   # pixels
+    depth_threshold = 0.2 * depth_prev  # 20% change in apparent size
+
+    significant_change = False
+    if delta_x > position_threshold:
+        print("Change in X")
+        significant_change = True
+    if delta_y > position_threshold:
+        print("Change in Y")
+        significant_change = True
+    if delta_depth > depth_threshold:
+        print("Change in depth")
+        significant_change = True
+
+    return significant_change, delta_x, delta_y, delta_depth, depth_initial
+
+def initial_change_states(bbox):
+    """Compute initial depth and position"""
+    x1, y1, x2, y2 = bbox
+    mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+    depth_initial = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+    position_initial = (mx, my)
+    return depth_initial, position_initial
 
 
 def build_detection_speech(objects, degrees, horizontal, vertical, depth_category):
@@ -125,7 +162,8 @@ def print_results(objects, degrees, horizontal, vertical, depth_category):
     """Print detection details to console"""
     print(f"\nFound {len(objects)} object(s)")
     for i, obj in enumerate(objects, 1):
-        print(f"  [{i}] {obj['label']}")
+        class_name_int = ", ".join(obj["label"]) if isinstance(obj["label"], (list, tuple)) else str(obj["label"])
+        print(f"  [{i}] {class_name_int}")
         print(f"      Position: {obj['position']}")
         print(f"      Distance: {obj['depth_category']}")
         if obj['degrees'] is not None:
@@ -148,11 +186,12 @@ def object_location(yolo_model, midas, transform, command):
         return
     
     # Classify target object
-    class_id = int(classify_request(command))
-    target_label = yolo_model.names[class_id]
+    class_id = classify_request(command)
+    class_name_string = [yolo_model.names[int(i)] for i in class_id]
     
-    print(f"Target: {target_label}")
-    speak_text(f"Locating {target_label}")
+    
+    print(f"Locating {class_name_string}")
+    speak_text(f"Locating {class_name_string}")
     
     # Run detection
-    detection_loop(cap, yolo_model, midas, transform, class_id, target_label)
+    detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string)

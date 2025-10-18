@@ -3,6 +3,7 @@ import threading
 import cv2
 import keyboard
 
+start_time = time.time()
 from objectify import classify_request, mode_select
 from vision import fuse_yolo_midas, setup_yolo, setup_midas
 from speechrecog import listen_for_command, get_voice_input
@@ -12,7 +13,6 @@ from mode2 import reading_mode
 
 
 def main():
-    start_time = time.time()
     
     # Load models
     print("Loading models...")

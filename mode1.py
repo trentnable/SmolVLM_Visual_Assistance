@@ -1,13 +1,9 @@
-import time
-import threading
-import keyboard
-import cv2
-import math
+import time, threading, keyboard, cv2, math
 
 from objectify import classify_request, mode_select
 from vision import fuse_yolo_midas, setup_yolo, setup_midas
 from speechrecog import listen_for_command, get_voice_input
-from googleTTS import speak_text
+from googleTTS import speak_text, stop_speech
 
 # Global state
 class AppState:
@@ -73,6 +69,7 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
     significant_change = False
     depth_current = 0
     position_current = 0, 0
+    tts_thread = None
     
     while not state.stop_requested.is_set():
         ret, frame = cap.read()
@@ -95,7 +92,17 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
             detection_count += 1
             speech = build_detection_speech(objects, degrees, horizontal, vertical, depth_category)
             print_results(objects, degrees, horizontal, vertical, depth_category)
-            speak_text(speech)
+
+            # threadinng for tts
+
+            # stop tts if it is currently running
+            if tts_thread is not None and tts_thread.is_alive():
+                stop_speech()
+                tts_thread.join(timeout=0.5)
+
+            tts_thread = threading.Thread(target=speak_text, args=[speech], daemon=True)
+            tts_thread.start()
+
             depth_current, position_current = initial_change_states(bbox)
 
         time.sleep(0.1)

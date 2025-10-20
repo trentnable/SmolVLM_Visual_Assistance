@@ -129,13 +129,13 @@ def change_detection(bbox, depth_prev, position_prev):
     depth_threshold = 0.2 * depth_prev  # 20% change in apparent size
 
     significant_change = False
-    if delta_x > position_threshold:
+    if delta_x > position_threshold and mx > 0:
         print("Change in X")
         significant_change = True
-    if delta_y > position_threshold:
+    if delta_y > position_threshold and my > 0:
         print("Change in Y")
         significant_change = True
-    if delta_depth > depth_threshold:
+    if delta_depth > depth_threshold and depth_initial > 0:
         print("Change in depth")
         significant_change = True
 

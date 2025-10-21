@@ -66,12 +66,15 @@ def fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=None):
 
     objects = []
     frame_height, frame_width = frame.shape[:2]
+    
+    bbox_overlap_check = []
 
     for box in results[0].boxes:
         x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
         label = results[0].names[int(box.cls)]
         confidence = float(box.conf)
         bbox = [x1, y1, x2, y2]
+        bbox_overlap_check.append([x1, y1, x2, y2])
 
         # Depth calculation for object
         if x2 > x1 and y2 > y1:

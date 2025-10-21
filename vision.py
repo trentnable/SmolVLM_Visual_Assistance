@@ -45,6 +45,31 @@ def get_depth_map(frame, midas, transform):
     depth = (prediction_np - prediction_np.min()) / (prediction_np.max() - prediction_np.min() + 1e-6)
     return depth
 
+def iou(box1, box2):
+    x1, y1, x2, y2 = box1
+    x1_p, y1_p, x2_p, y2_p = box2
+
+    # Compute intersection
+    xi1 = max(x1, x1_p)
+    yi1 = max(y1, y1_p)
+    xi2 = min(x2, x2_p)
+    yi2 = min(y2, y2_p)
+
+    inter_width = max(0, xi2 - xi1)
+    inter_height = max(0, yi2 - yi1)
+    inter_area = inter_width * inter_height
+
+    # Compute union
+    box1_area = (x2 - x1) * (y2 - y1)
+    box2_area = (x2_p - x1_p) * (y2_p - y1_p)
+    union_area = box1_area + box2_area - inter_area
+
+    # Avoid divide-by-zero
+    if union_area == 0:
+        return 0
+
+    return inter_area / union_area
+
 
 # YOLO + MiDaS
 def fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=None):
@@ -74,6 +99,21 @@ def fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=None):
         label = results[0].names[int(box.cls)]
         confidence = float(box.conf)
         bbox = [x1, y1, x2, y2]
+
+        too_close = False
+        for prev_bbox in bbox_overlap_check:
+            overlap = iou(bbox, prev_bbox)
+            if overlap > 0.3:                   # 30% Overlap IoU
+                too_close = True
+                break
+
+        if too_close:
+            
+            continue
+
+        # Add box if not overlapping
+        bbox_overlap_check.append(bbox)
+
         bbox_overlap_check.append([x1, y1, x2, y2])
 
         # Depth calculation for object
@@ -82,7 +122,7 @@ def fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=None):
             median_depth = float(np.median(depth_crop))
         else:
             median_depth = None
-
+ 
         # Draw bounding box
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
         text = f"{label} {median_depth:.2f}" if median_depth is not None else label

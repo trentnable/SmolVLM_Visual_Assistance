@@ -57,7 +57,7 @@ def reset_state():
     
 
 def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string):
-    """Main detection loop for Mode 1"""
+    """Main detection loop for Mode 1 - tracks each class individually"""
 
     state.in_detection = True
     state.stop_requested.clear()
@@ -66,10 +66,10 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
     
     loop_start = time.time()
     detection_count = 0
-    significant_change = False
-    depth_current = 0
-    position_current = 0, 0
     tts_thread = None
+    
+    # Track state for EACH class individually
+    tracked_objects = {}  # {class_name: {"depth": float, "position": (x, y)}}
     
     while not state.stop_requested.is_set():
         ret, frame = cap.read()
@@ -78,32 +78,71 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
             break
         
         # Run detection
-        objects, _, annotated_frame, degrees, horizontal, vertical, depth_category, bbox = \
-            fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=class_id)
-        
+        objects, _, annotated_frame, _, _, _, _, _ = fuse_yolo_midas(
+            frame, yolo_model, midas, transform, class_name_string, class_id=class_id
+        )
+
         cv2.imshow('Detection', annotated_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-        significant_change, delta_x, delta_y, delta_depth, depth_initial = change_detection(bbox, depth_current, position_current)
+        # Check for changes in each tracked class
+        moving_objects = []
+        
+        for obj in objects:
+            class_name = obj["label"]
+            bbox = obj["bbox"]
+            
+            # First detection of this class - initialize tracking
+            if class_name not in tracked_objects:
+                depth, position = initial_change_states(bbox)
+                tracked_objects[class_name] = {
+                    "depth": depth,
+                    "position": position
+                }
+                moving_objects.append(obj)
+                print(f"First detection of {class_name}")
+                
+            else:
+                # Check if THIS specific class has moved
+                prev_depth = tracked_objects[class_name]["depth"]
+                prev_position = tracked_objects[class_name]["position"]
+                
+                significant_change, delta_x, delta_y, delta_depth, depth_initial = change_detection(
+                    bbox, prev_depth, prev_position
+                )
+                
+                if significant_change:
+                    print(f"{class_name} has moved")
+                    moving_objects.append(obj)
+                    
+                    # Update tracked state for THIS class
+                    depth, position = initial_change_states(bbox)
+                    tracked_objects[class_name]["depth"] = depth
+                    tracked_objects[class_name]["position"] = position
 
-        # Report findings
-        if (objects and significant_change) or (objects and detection_count == 0):
+        # Announce only objects that moved
+        if moving_objects:
             detection_count += 1
-            speech = build_detection_speech(objects, degrees, horizontal, vertical, depth_category)
-            print_results(objects, degrees, horizontal, vertical, depth_category)
+            speech = build_detection_speech(moving_objects)
 
-            # threadinng for tts
+            # Print results for moving objects only
+            for obj in moving_objects:
+                print_results(
+                    [obj],
+                    obj["degrees"],
+                    obj["horizontal"],
+                    obj["vertical"],
+                    obj["depth_category"]
+                )
 
-            # stop tts if it is currently running
+            # Stop previous TTS and start new one
             if tts_thread is not None and tts_thread.is_alive():
                 stop_speech()
                 tts_thread.join(timeout=0.5)
 
             tts_thread = threading.Thread(target=speak_text, args=[speech], daemon=True)
             tts_thread.start()
-
-            depth_current, position_current = initial_change_states(bbox)
 
         time.sleep(0.1)
     
@@ -150,20 +189,14 @@ def initial_change_states(bbox):
     return depth_initial, position_initial
 
 
-def build_detection_speech(objects, degrees, horizontal, vertical, depth_category):
-    """Build speech output from detection results"""
-    count = len(objects)
-    speech = f"Found {count} object{'s' if count > 1 else ''}. "
-    speech += f"Direction is {vertical}, "
-    
-    if degrees is not None:
-        speech += f"{int(degrees)} degrees to the {horizontal}. "
-    else:
-        speech += f"{horizontal}. "
-    
-    speech += f"Distance is {depth_category}."
-    return speech
-
+def build_detection_speech(objects):
+    parts = []
+    for obj in objects:
+        label = obj["label"]
+        position = obj["position"]
+        depth_cat = obj["depth_category"]
+        parts.append(f"{label} is {position} and {depth_cat}")
+    return ". ".join(parts)
 
 def print_results(objects, degrees, horizontal, vertical, depth_category):
     """Print detection details to console"""

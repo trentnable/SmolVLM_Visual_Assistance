@@ -39,7 +39,7 @@ def main():
                 print("Mode selection error")
             
             # Reset state
-            reset_state()
+            reset_mode_state()
     
     except KeyboardInterrupt:
         print("\nShutting down...")

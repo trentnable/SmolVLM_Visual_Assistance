@@ -10,6 +10,7 @@ class AppState:
     def __init__(self):
         self.mic_ready = threading.Event()
         self.stop_requested = threading.Event()
+        self.cancel_mode = threading.Event()
         self.in_detection = False
         self.last_press_time = 0
         self.lock = threading.Lock()
@@ -17,9 +18,7 @@ class AppState:
 state = AppState()
 
 def on_key_press(event):
-    """Handle 'm' key press with debouncing"""
-    if event.name != 'm':
-        return
+    """Handle 'm' key press and 'c' key press with debouncing"""
     
     current_time = time.time()
     with state.lock:
@@ -27,11 +26,19 @@ def on_key_press(event):
             return
         state.last_press_time = current_time
         
-        if state.in_detection:
-            state.stop_requested.set()
-            print("Stop detection")
-        else:
-            state.mic_ready.set()
+        if event.name == 'm':
+            if state.in_detection:
+                state.stop_requested.set()
+                print("Stop Requested")
+            else:
+                state.mic_ready.set()
+
+        if event.name == 'c':
+            if state.in_detection:
+                state.stop_requested.set()
+            state.cancel_mode.set()
+            print("Mode cancelled, returning to default")
+            speak_text("Mode cancelled, returning to default")
 
 keyboard.on_press(on_key_press)
 
@@ -42,7 +49,7 @@ def cleanup():
 
 def wait_for_mic():
     """Wait for mic button press"""
-    print("\nPress 'm' to start (Ctrl+C to exit)")
+    print("\nPress 'm' to start")
     speak_text("Press 'm' to start")
     state.mic_ready.clear()
     
@@ -54,6 +61,13 @@ def wait_for_mic():
 def reset_state():
     """Pass variable values between scripts"""
     state.in_detection = False
+
+def reset_mode_state():
+    """Reset all state when exiting a mode"""
+    state.in_detection = False
+    state.stop_requested.clear()
+    state.cancel_mode.clear()
+    state.mic_ready.clear()
     
 
 def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string):
@@ -68,8 +82,8 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
     detection_count = 0
     tts_thread = None
     
-    # Track state for EACH class individually
-    tracked_objects = {}  # {class_name: {"depth": float, "position": (x, y)}}
+    # Track state for each class
+    tracked_objects = {}
     
     while not state.stop_requested.is_set():
         ret, frame = cap.read()
@@ -93,7 +107,7 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
             class_name = obj["label"]
             bbox = obj["bbox"]
             
-            # First detection of this class - initialize tracking
+            # First detections
             if class_name not in tracked_objects:
                 depth, position = initial_change_states(bbox)
                 tracked_objects[class_name] = {
@@ -104,7 +118,7 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
                 print(f"First detection of {class_name}")
                 
             else:
-                # Check if THIS specific class has moved
+                # Check if each class has moved
                 prev_depth = tracked_objects[class_name]["depth"]
                 prev_position = tracked_objects[class_name]["position"]
                 
@@ -116,12 +130,12 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
                     print(f"{class_name} has moved")
                     moving_objects.append(obj)
                     
-                    # Update tracked state for THIS class
+                    # Update tracked state for each class
                     depth, position = initial_change_states(bbox)
                     tracked_objects[class_name]["depth"] = depth
                     tracked_objects[class_name]["position"] = position
 
-        # Announce only objects that moved
+        # TTS only for moved objects
         if moving_objects:
             detection_count += 1
             speech = build_detection_speech(moving_objects)

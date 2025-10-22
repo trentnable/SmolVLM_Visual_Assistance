@@ -10,6 +10,7 @@ class AppState:
     def __init__(self):
         self.mic_ready = threading.Event()
         self.stop_requested = threading.Event()
+        self.cancel_mode = threading.Event()  # 'c' key to exit mode completely
         self.in_detection = False
         self.last_press_time = 0
         self.lock = threading.Lock()
@@ -17,21 +18,27 @@ class AppState:
 state = AppState()
 
 def on_key_press(event):
-    """Handle 'm' key press with debouncing"""
-    if event.name != 'm':
-        return
-    
+    """Handle 'm' key press (stop detection & trigger mic) and 'c' key press (exit mode)"""
     current_time = time.time()
     with state.lock:
         if current_time - state.last_press_time < 0.3:
             return
         state.last_press_time = current_time
         
-        if state.in_detection:
-            state.stop_requested.set()
-            print("Stop detection")
-        else:
+        if event.name == 'm':
+            if state.in_detection:
+                # Stop current detection
+                state.stop_requested.set()
+                print("Stopping detection")
+            # Always set mic_ready when 'm' is pressed
             state.mic_ready.set()
+                
+        elif event.name == 'c':
+            # Exit mode completely
+            if state.in_detection:
+                state.stop_requested.set()
+            state.cancel_mode.set()
+            print("Exiting Mode 1, returning to main menu")
 
 keyboard.on_press(on_key_press)
 
@@ -51,59 +58,124 @@ def wait_for_mic():
     
     state.mic_ready.clear()
 
-def reset_state():
-    """Pass variable values between scripts"""
-    state.in_detection = False
+def wait_for_mic_in_mode():
+    """Wait for mic button press while in Mode 1"""
+    # If mic is already ready (from stopping previous detection), proceed immediately
+    if state.mic_ready.is_set():
+        state.mic_ready.clear()
+        return True
     
+    print("\nPress 'm' for new command, 'c' to exit mode")
+    speak_text("Press 'm' for new command, or 'c' to exit mode")
+    
+    # Wait for mic button or cancel
+    while not state.mic_ready.is_set() and not state.cancel_mode.is_set():
+        state.mic_ready.wait(timeout=0.5)
+    
+    state.mic_ready.clear()
+    
+    # Return True if continuing in mode, False if exiting
+    return not state.cancel_mode.is_set()
+
+def reset_state():
+    """Reset state variables between detections"""
+    state.in_detection = False
+    state.stop_requested.clear()
+
+def reset_mode_state():
+    """Reset all state when exiting a mode"""
+    state.in_detection = False
+    state.stop_requested.clear()
+    state.cancel_mode.clear()
+    state.mic_ready.clear()
 
 def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string):
-    """Main detection loop for Mode 1"""
+    """Main detection loop for Mode 1 - tracks each class individually"""
 
     state.in_detection = True
     state.stop_requested.clear()
     
-    print(f"\nDetecting {class_name_string}. Press 'm' to stop.")
+    print(f"\nDetecting {class_name_string}. Press 'm' for new command, 'c' to exit mode.")
     
     loop_start = time.time()
     detection_count = 0
-    significant_change = False
-    depth_current = 0
-    position_current = 0, 0
     tts_thread = None
     
-    while not state.stop_requested.is_set():
+    # Track state for EACH class individually
+    tracked_objects = {}  # {class_name: {"depth": float, "position": (x, y)}}
+    
+    while not state.stop_requested.is_set() and not state.cancel_mode.is_set():
         ret, frame = cap.read()
         if not ret:
             print("Camera error")
             break
         
         # Run detection
-        objects, _, annotated_frame, degrees, horizontal, vertical, depth_category, bbox = \
-            fuse_yolo_midas(frame, yolo_model, midas, transform, class_id=class_id)
-        
+        objects, _, annotated_frame, _, _, _, _, _ = fuse_yolo_midas(
+            frame, yolo_model, midas, transform, class_name_string, class_id=class_id
+        )
+
         cv2.imshow('Detection', annotated_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-        significant_change, delta_x, delta_y, delta_depth, depth_initial = change_detection(bbox, depth_current, position_current)
+        # Check for changes in each tracked class
+        moving_objects = []
+        
+        for obj in objects:
+            class_name = obj["label"]
+            bbox = obj["bbox"]
+            
+            # First detection of this class - initialize tracking
+            if class_name not in tracked_objects:
+                depth, position = initial_change_states(bbox)
+                tracked_objects[class_name] = {
+                    "depth": depth,
+                    "position": position
+                }
+                moving_objects.append(obj)
+                print(f"First detection of {class_name}")
+                
+            else:
+                # Check if THIS specific class has moved
+                prev_depth = tracked_objects[class_name]["depth"]
+                prev_position = tracked_objects[class_name]["position"]
+                
+                significant_change, delta_x, delta_y, delta_depth, depth_initial = change_detection(
+                    bbox, prev_depth, prev_position
+                )
+                
+                if significant_change:
+                    print(f"{class_name} has moved")
+                    moving_objects.append(obj)
+                    
+                    # Update tracked state for THIS class
+                    depth, position = initial_change_states(bbox)
+                    tracked_objects[class_name]["depth"] = depth
+                    tracked_objects[class_name]["position"] = position
 
-        # Report findings
-        if (objects and significant_change) or (objects and detection_count == 0):
+        # Announce only objects that moved
+        if moving_objects:
             detection_count += 1
-            speech = build_detection_speech(objects, degrees, horizontal, vertical, depth_category)
-            print_results(objects, degrees, horizontal, vertical, depth_category)
+            speech = build_detection_speech(moving_objects)
 
-            # threadinng for tts
+            # Print results for moving objects only
+            for obj in moving_objects:
+                print_results(
+                    [obj],
+                    obj["degrees"],
+                    obj["horizontal"],
+                    obj["vertical"],
+                    obj["depth_category"]
+                )
 
-            # stop tts if it is currently running
+            # Stop previous TTS and start new one
             if tts_thread is not None and tts_thread.is_alive():
                 stop_speech()
                 tts_thread.join(timeout=0.5)
 
             tts_thread = threading.Thread(target=speak_text, args=[speech], daemon=True)
             tts_thread.start()
-
-            depth_current, position_current = initial_change_states(bbox)
 
         time.sleep(0.1)
     
@@ -126,7 +198,7 @@ def change_detection(bbox, depth_prev, position_prev):
 
     # Change thresholds
     position_threshold = 50   # pixels
-    depth_threshold = 0.2 * depth_prev  # 20% change in apparent size
+    depth_threshold = 0.2 * depth_prev if depth_prev > 0 else 0  # 20% change in apparent size
 
     significant_change = False
     if delta_x > position_threshold and mx > 0:
@@ -150,20 +222,14 @@ def initial_change_states(bbox):
     return depth_initial, position_initial
 
 
-def build_detection_speech(objects, degrees, horizontal, vertical, depth_category):
-    """Build speech output from detection results"""
-    count = len(objects)
-    speech = f"Found {count} object{'s' if count > 1 else ''}. "
-    speech += f"Direction is {vertical}, "
-    
-    if degrees is not None:
-        speech += f"{int(degrees)} degrees to the {horizontal}. "
-    else:
-        speech += f"{horizontal}. "
-    
-    speech += f"Distance is {depth_category}."
-    return speech
-
+def build_detection_speech(objects):
+    parts = []
+    for obj in objects:
+        label = obj["label"]
+        position = obj["position"]
+        depth_cat = obj["depth_category"]
+        parts.append(f"{label} is {position} and {depth_cat}")
+    return ". ".join(parts)
 
 def print_results(objects, degrees, horizontal, vertical, depth_category):
     """Print detection details to console"""
@@ -182,23 +248,52 @@ def print_results(objects, degrees, horizontal, vertical, depth_category):
     print(f"         {depth_category}")
 
 
-def object_location(yolo_model, midas, transform, command):
-    """Mode 1: Object detection and location"""
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+def object_location(yolo_model, midas, transform, initial_command):
+    """Mode 1: Object detection and location - endless loop until 'c' is pressed"""
     
-    if not cap.isOpened():
-        print("Camera error")
-        speak_text("Camera error")
-        return
+    command = initial_command
+    first_iteration = True
     
-    # Classify target object
-    class_id = classify_request(command)
-    class_name_string = [yolo_model.names[int(i)] for i in class_id]
+    # Keep running mode 1 until cancel_mode is set
+    while not state.cancel_mode.is_set():
+        # After first iteration, wait for 'm' press to get new voice command
+        if not first_iteration:
+            continue_mode = wait_for_mic_in_mode()
+            if not continue_mode:
+                break
+            
+            # Get voice command
+            command = get_voice_input(duration=5)
+        
+        first_iteration = False
+        
+        # Classify target object
+        class_id = classify_request(command)
+        class_name_string = [yolo_model.names[int(i)] for i in class_id]
+        
+        print(f"Locating {class_name_string}")
+        speak_text(f"Locating {class_name_string}")
+        
+        # Open camera
+        cap = cv2.VideoCapture(0)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        
+        if not cap.isOpened():
+            print("Camera error")
+            speak_text("Camera error")
+            continue
+        
+        # Run detection (will stop when 'm' or 'c' is pressed)
+        detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string)
+        
+        # Reset detection state (but NOT cancel_mode)
+        reset_state()
+        
+        # Check again if 'c' was pressed during detection
+        if state.cancel_mode.is_set():
+            break
     
-    
-    print(f"Locating {class_name_string}")
-    speak_text(f"Locating {class_name_string}")
-    
-    # Run detection
-    detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string)
+    # Clean up when exiting mode
+    reset_mode_state()
+    print("Exited Mode 1")
+    speak_text("Exited Mode 1")

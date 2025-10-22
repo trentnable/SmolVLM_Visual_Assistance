@@ -7,7 +7,6 @@ from googleTTS import speak_text
 
 
 def reading_mode():
-    """Mode 2: Text reading (placeholder)"""
+    """Mode 2: Reading Mode"""
     print("Reading mode")
     speak_text("Reading mode active")
-    time.sleep(2)

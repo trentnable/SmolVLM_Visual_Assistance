@@ -1,8 +1,8 @@
 import time, threading, keyboard, cv2, math
 
-from objectify import classify_request, mode_select
-from vision import fuse_yolo_midas, setup_yolo, setup_midas
-from speechrecog import listen_for_command, get_voice_input
+from objectify import classify_request
+from vision import fuse_yolo_midas
+from speechrecog import get_voice_input
 from googleTTS import speak_text, stop_speech
 
 # Global state
@@ -10,7 +10,7 @@ class AppState:
     def __init__(self):
         self.mic_ready = threading.Event()
         self.stop_requested = threading.Event()
-        self.cancel_mode = threading.Event()  # 'c' key to exit mode completely
+        self.cancel_mode = threading.Event()  
         self.in_detection = False
         self.last_press_time = 0
         self.lock = threading.Lock()
@@ -27,14 +27,14 @@ def on_key_press(event):
         
         if event.name == 'm':
             if state.in_detection:
-                # Stop current detection
+                
                 state.stop_requested.set()
                 print("Stopping detection")
-            # Always set mic_ready when 'm' is pressed
+            
             state.mic_ready.set()
                 
         elif event.name == 'c':
-            # Exit mode completely
+            
             if state.in_detection:
                 state.stop_requested.set()
             state.cancel_mode.set()
@@ -60,13 +60,13 @@ def wait_for_mic():
 
 def wait_for_mic_in_mode():
     """Wait for mic button press while in Mode 1"""
-    # If mic is already ready (from stopping previous detection), proceed immediately
+    
     if state.mic_ready.is_set():
         state.mic_ready.clear()
         return True
     
-    print("\nPress 'm' for new command, 'c' to exit mode")
-    speak_text("Press 'm' for new command, or 'c' to exit mode")
+    print("\nPress 'm' for mic, 'c' to exit location mode")
+    speak_text("Press 'm' for mic, or 'c' to exit location mode")
     
     # Wait for mic button or cancel
     while not state.mic_ready.is_set() and not state.cancel_mode.is_set():
@@ -74,7 +74,7 @@ def wait_for_mic_in_mode():
     
     state.mic_ready.clear()
     
-    # Return True if continuing in mode, False if exiting
+    
     return not state.cancel_mode.is_set()
 
 def reset_state():
@@ -95,14 +95,14 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
     state.in_detection = True
     state.stop_requested.clear()
     
-    print(f"\nDetecting {class_name_string}. Press 'm' for new command, 'c' to exit mode.")
+    print(f"\nDetecting {class_name_string}. Press 'm' for mic, 'c' to exit mode.")
     
     loop_start = time.time()
     detection_count = 0
     tts_thread = None
     
-    # Track state for EACH class individually
-    tracked_objects = {}  # {class_name: {"depth": float, "position": (x, y)}}
+    # Track state for each class_id
+    tracked_objects = {}  
     
     while not state.stop_requested.is_set() and not state.cancel_mode.is_set():
         ret, frame = cap.read()
@@ -119,14 +119,14 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-        # Check for changes in each tracked class
+        # Check for changes in each tracked class_id
         moving_objects = []
         
         for obj in objects:
             class_name = obj["label"]
             bbox = obj["bbox"]
             
-            # First detection of this class - initialize tracking
+            # First detection of each class_id
             if class_name not in tracked_objects:
                 depth, position = initial_change_states(bbox)
                 tracked_objects[class_name] = {
@@ -137,7 +137,7 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
                 print(f"First detection of {class_name}")
                 
             else:
-                # Check if THIS specific class has moved
+                # Check if each class_id has moved
                 prev_depth = tracked_objects[class_name]["depth"]
                 prev_position = tracked_objects[class_name]["position"]
                 
@@ -149,7 +149,7 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
                     print(f"{class_name} has moved")
                     moving_objects.append(obj)
                     
-                    # Update tracked state for THIS class
+                    # Update tracked state for class_id
                     depth, position = initial_change_states(bbox)
                     tracked_objects[class_name]["depth"] = depth
                     tracked_objects[class_name]["position"] = position
@@ -159,7 +159,7 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
             detection_count += 1
             speech = build_detection_speech(moving_objects)
 
-            # Print results for moving objects only
+            
             for obj in moving_objects:
                 print_results(
                     [obj],
@@ -169,7 +169,7 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
                     obj["depth_category"]
                 )
 
-            # Stop previous TTS and start new one
+            # TTS Override
             if tts_thread is not None and tts_thread.is_alive():
                 stop_speech()
                 tts_thread.join(timeout=0.5)
@@ -191,14 +191,14 @@ def change_detection(bbox, depth_prev, position_prev):
     mx, my = (x1 + x2) / 2, (y1 + y2) / 2
     depth_initial = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-    # Differences from previous
+    # Differences values
     delta_x = abs(mx - position_prev[0])
     delta_y = abs(my - position_prev[1])
     delta_depth = abs(depth_initial - depth_prev)
 
-    # Change thresholds
-    position_threshold = 50   # pixels
-    depth_threshold = 0.2 * depth_prev if depth_prev > 0 else 0  # 20% change in apparent size
+    # Thresholds
+    position_threshold = 150 
+    depth_threshold = 0.4 * depth_prev if depth_prev > 0 else 0  
 
     significant_change = False
     if delta_x > position_threshold and mx > 0:
@@ -249,14 +249,14 @@ def print_results(objects, degrees, horizontal, vertical, depth_category):
 
 
 def object_location(yolo_model, midas, transform, initial_command):
-    """Mode 1: Object detection and location - endless loop until 'c' is pressed"""
+    """Mode 1: Object detection and location, endless loop until 'c' is pressed"""
     
     command = initial_command
     first_iteration = True
     
-    # Keep running mode 1 until cancel_mode is set
+    # Mode1 looped
     while not state.cancel_mode.is_set():
-        # After first iteration, wait for 'm' press to get new voice command
+        
         if not first_iteration:
             continue_mode = wait_for_mic_in_mode()
             if not continue_mode:
@@ -267,8 +267,14 @@ def object_location(yolo_model, midas, transform, initial_command):
         
         first_iteration = False
         
-        # Classify target object
+        # Classify object
         class_id = classify_request(command)
+
+        if class_id == "unlisted_object":
+            print("Requested object is not supported")
+            speak_text("Requested object is not supported")
+            continue
+
         class_name_string = [yolo_model.names[int(i)] for i in class_id]
         
         print(f"Locating {class_name_string}")
@@ -283,17 +289,17 @@ def object_location(yolo_model, midas, transform, initial_command):
             speak_text("Camera error")
             continue
         
-        # Run detection (will stop when 'm' or 'c' is pressed)
+        # Run detection
         detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string)
         
-        # Reset detection state (but NOT cancel_mode)
+        # Reset detection
         reset_state()
         
-        # Check again if 'c' was pressed during detection
+        # Clear detection
         if state.cancel_mode.is_set():
             break
     
-    # Clean up when exiting mode
+    # Clean up for mode exit
     reset_mode_state()
     print("Exited Mode 1")
     speak_text("Exited Mode 1")

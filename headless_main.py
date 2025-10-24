@@ -1,14 +1,11 @@
 import time
-import threading
-import cv2
-import keyboard
 
 start_time = time.time()
-from objectify import classify_request, mode_select
-from vision import fuse_yolo_midas, setup_yolo, setup_midas
-from speechrecog import listen_for_command, get_voice_input
+from objectify import mode_select
+from vision import setup_yolo, setup_midas
+from speechrecog import get_voice_input
 from googleTTS import speak_text
-from mode1 import detection_loop, build_detection_speech, print_results, object_location, on_key_press, wait_for_mic, cleanup, reset_state
+from mode1 import object_location, wait_for_mic, cleanup, reset_mode_state
 from mode2 import reading_mode
 
 
@@ -22,24 +19,28 @@ def main():
     
     try:
         while True:
-            # Wait for activation
+            # Wait for activation with 'm' key (Outside of mode selection)
             wait_for_mic()
             
-            # Get voice command
+            # Get voice command to select mode
             command = get_voice_input(duration=5)
             
-            # Determine mode
+            # Mode selection
             mode = mode_select(command)
             
             if mode == "one":
+                #Loop detection and reprompt until 'c' clears mode              
                 object_location(yolo_model, midas, transform, command)
             elif mode == "two":
                 reading_mode()
+            elif mode == "null":
+                print("Unclear mode selection, try again")
+                speak_text("Unclear mode selection, try again")
             else:
                 print("Mode selection error")
             
             # Reset state
-            reset_state()
+            reset_mode_state()
     
     except KeyboardInterrupt:
         print("\nShutting down...")

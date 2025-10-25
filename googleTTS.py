@@ -1,9 +1,11 @@
 from gtts import gTTS
 import pygame, threading
 from io import BytesIO
+from resource_manager import register_pygame
 
 # Initialize audio playback
 pygame.mixer.init()
+register_pygame()   # register for cleanup
 
 # stop flag for tts thread
 stop_tts_flag = threading.Event()

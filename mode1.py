@@ -4,6 +4,7 @@ from objectify import classify_request
 from vision import fuse_yolo_midas
 from speechrecog import get_voice_input
 from googleTTS import speak_text, stop_speech
+from resource_manager import register_camera, register_tts_thread, register_keyboard_hook
 
 # Global state
 class AppState:
@@ -34,18 +35,13 @@ def on_key_press(event):
             state.mic_ready.set()
                 
         elif event.name == 'c':
-            
             if state.in_detection:
                 state.stop_requested.set()
             state.cancel_mode.set()
             print("Exiting Mode 1, returning to main menu")
 
 keyboard.on_press(on_key_press)
-
-def cleanup():
-    """Cleanup resources on exit"""
-    cv2.destroyAllWindows()
-    keyboard.unhook_all()
+register_keyboard_hook()
 
 def wait_for_mic():
     """Wait for mic button press"""
@@ -109,6 +105,10 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
         if not ret:
             print("Camera error")
             break
+
+        # to skip n frames, do range(n-1); currently skipping 4 frames
+        for _ in range(3):
+            cap.grab()
         
         # Run detection
         objects, _, annotated_frame, _, _, _, _, _ = fuse_yolo_midas(
@@ -116,8 +116,6 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
         )
 
         cv2.imshow('Detection', annotated_frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
 
         # Check for changes in each tracked class_id
         moving_objects = []
@@ -175,6 +173,7 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
                 tts_thread.join(timeout=0.5)
 
             tts_thread = threading.Thread(target=speak_text, args=[speech], daemon=True)
+            register_tts_thread(tts_thread)     # register for cleanup
             tts_thread.start()
 
         time.sleep(0.1)
@@ -254,6 +253,18 @@ def object_location(yolo_model, midas, transform, initial_command):
     command = initial_command
     first_iteration = True
     
+    # Open camera
+    cap = cv2.VideoCapture(0)
+    
+    if not cap.isOpened():
+        print("Camera error")
+        speak_text("Camera error")
+        return
+
+    register_camera(cap)    # register for cleanup
+    # only caputre store one frame in the buffer at a time to avoid old frames
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
     # Mode1 looped
     while not state.cancel_mode.is_set():
         
@@ -279,16 +290,7 @@ def object_location(yolo_model, midas, transform, initial_command):
         
         print(f"Locating {class_name_string}")
         speak_text(f"Locating {class_name_string}")
-        
-        # Open camera
-        cap = cv2.VideoCapture(0)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        
-        if not cap.isOpened():
-            print("Camera error")
-            speak_text("Camera error")
-            continue
-        
+
         # Run detection
         detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string)
         

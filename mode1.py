@@ -15,30 +15,35 @@ class AppState:
         self.in_detection = False
         self.last_press_time = 0
         self.lock = threading.Lock()
+        self.mic_active = False
 
 state = AppState()
 
 def on_key_press(event):
-    """Handle 'm' key press (stop detection & trigger mic) and 'c' key press (exit mode)"""
+    """Handle 'm' key press and 'c' key press (exit mode)"""
     current_time = time.time()
     with state.lock:
         if current_time - state.last_press_time < 0.3:
             return
         state.last_press_time = current_time
-        
+
         if event.name == 'm':
             if state.in_detection:
-                
                 state.stop_requested.set()
                 print("Stopping detection")
-            
+
             state.mic_ready.set()
-                
+
         elif event.name == 'c':
+            if not state.mic_active:
+                print("No mode is active")
+                speak_text("No mode is active")
+                return
+
             if state.in_detection:
                 state.stop_requested.set()
             state.cancel_mode.set()
-            print("Exiting Mode 1, returning to main menu")
+            print("Exiting Mode, returning to main menu")
 
 keyboard.on_press(on_key_press)
 register_keyboard_hook()
@@ -48,11 +53,14 @@ def wait_for_mic():
     print("\nPress 'm' to start (Ctrl+C to exit)")
     speak_text("Press 'm' to start")
     state.mic_ready.clear()
-    
+    state.mic_active = False  
+
     while not state.mic_ready.is_set():
         state.mic_ready.wait(timeout=0.5)
     
     state.mic_ready.clear()
+    state.mic_active = True  
+
 
 def wait_for_mic_in_mode():
     """Wait for mic button press while in Mode 1"""

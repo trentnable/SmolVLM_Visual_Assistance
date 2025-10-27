@@ -101,22 +101,20 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
 
     state.in_detection = True
     state.stop_requested.clear()
-    
+
     print(f"\nDetecting {class_name_string}. Press 'm' for mic, 'c' to exit mode.")
-    
-    loop_start = time.time()
-    detection_count = 0
+
     tts_thread = None
-    
-    # Track state for each class_id
-    tracked_objects = {}  
-    
+    tracked_objects = {}
+    last_detection_time = time.time()
+    detection_timeout = 1.5 
+
     while not state.stop_requested.is_set() and not state.cancel_mode.is_set():
         ret, frame = cap.read()
         if not ret:
             print("Camera error")
             break
-        
+
         # Run detection
         objects, _, annotated_frame, _, _, _, _, _ = fuse_yolo_midas(
             frame, yolo_model, midas, transform, class_name_string, class_id=class_id
@@ -126,66 +124,75 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-        # Check for changes in each tracked class_id
         moving_objects = []
-        
-        for obj in objects:
-            class_name = obj["label"]
-            bbox = obj["bbox"]
-            
-            # First detection of each class_id
-            if class_name not in tracked_objects:
-                depth, position = initial_change_states(bbox)
-                tracked_objects[class_name] = {
-                    "depth": depth,
-                    "position": position
-                }
-                moving_objects.append(obj)
-                print(f"First detection of {class_name}")
-                
-            else:
-                # Check if each class_id has moved
-                prev_depth = tracked_objects[class_name]["depth"]
-                prev_position = tracked_objects[class_name]["position"]
-                
-                significant_change, delta_x, delta_y, delta_depth, depth_initial = change_detection(
-                    bbox, prev_depth, prev_position
-                )
-                
-                if significant_change:
-                    print(f"{class_name} has moved")
-                    moving_objects.append(obj)
-                    
-                    # Update tracked state for class_id
+
+        # --- CASE 1: Objects detected ---
+        if objects:
+            # Reset timer since objects are visible
+            last_detection_time = time.time()
+
+            for obj in objects:
+                class_name = obj["label"]
+                bbox = obj["bbox"]
+
+                # First detection after reset or new object
+                if class_name not in tracked_objects:
                     depth, position = initial_change_states(bbox)
-                    tracked_objects[class_name]["depth"] = depth
-                    tracked_objects[class_name]["position"] = position
+                    tracked_objects[class_name] = {
+                        "depth": depth,
+                        "position": position,
+                        "time_of_last_detection": time.time()
+                    }
+                    moving_objects.append(obj)
+                    print(f"First detection of {class_name}")
 
-        # Announce only objects that moved
-        if moving_objects:
-            detection_count += 1
-            speech = build_detection_speech(moving_objects)
+                else:
+                    # Compare position/depth change with previous state
+                    prev_depth = tracked_objects[class_name]["depth"]
+                    prev_position = tracked_objects[class_name]["position"]
 
-            
-            for obj in moving_objects:
-                print_results(
-                    [obj],
-                    obj["degrees"],
-                    obj["horizontal"],
-                    obj["vertical"],
-                    obj["depth_category"]
-                )
+                    significant_change, delta_x, delta_y, delta_depth, depth_initial = change_detection(
+                        bbox, prev_depth, prev_position
+                    )
 
-            # TTS Override
-            if tts_thread is not None and tts_thread.is_alive():
-                stop_speech()
-                tts_thread.join(timeout=0.5)
+                    if significant_change:
+                        print(f"{class_name} has moved")
+                        moving_objects.append(obj)
 
-            tts_thread = threading.Thread(target=speak_text, args=[speech], daemon=True)
-            tts_thread.start()
+                        depth, position = initial_change_states(bbox)
+                        tracked_objects[class_name].update({
+                            "depth": depth,
+                            "position": position,
+                            "time_of_last_detection": time.time()
+                        })
+
+            # --- Speak when movement is detected ---
+            if moving_objects:
+                speech = build_detection_speech(moving_objects)
+
+                if tts_thread is not None and tts_thread.is_alive():
+                    stop_speech()
+                    tts_thread.join(timeout=0.3)
+
+                tts_thread = threading.Thread(target=speak_text, args=[speech], daemon=True)
+                tts_thread.start()
+
+        # --- CASE 2: No objects detected ---
+        else:
+            time_since_last = time.time() - last_detection_time
+
+            # If more than 0.5 s without any detection, stop TTS and reset trackers
+            if time_since_last > detection_timeout:
+                if tts_thread is not None and tts_thread.is_alive():
+                    print(f"No objects detected for {time_since_last:.2f}s → stopping speech")
+                    stop_speech()
+
+                # Reset everything so reappearing objects are treated as new
+                tracked_objects.clear()
+                last_detection_time = time.time()
 
         time.sleep(0.1)
-    
+
     state.in_detection = False
     cv2.destroyAllWindows()
     cap.release()

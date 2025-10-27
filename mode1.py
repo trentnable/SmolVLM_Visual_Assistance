@@ -97,7 +97,7 @@ def reset_mode_state():
     state.mic_ready.clear()
 
 def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string):
-    """Main detection loop for Mode 1 - tracks each class individually"""
+    """Detection loop with flicker tolerance and per-instance tracking."""
 
     state.in_detection = True
     state.stop_requested.clear()
@@ -105,17 +105,25 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
     print(f"\nDetecting {class_name_string}. Press 'm' for mic, 'c' to exit mode.")
 
     tts_thread = None
-    tracked_objects = {}
+    tracked_objects = {}  # ID dictionary
     last_detection_time = time.time()
-    detection_timeout = 1.5 
+    detection_timeout = 0.5  # undetected timer
+
+    max_missing_time = 0.5          # missing object buffer
+    min_visible_frames = 6          # object frames before adding to IDs
+    movement_confirm_frames = 2     # movement frames
+    match_distance_threshold = 60   # tracked object matching
+    movement_threshold_px = 30      # significant movement
+    next_object_id = 0
 
     while not state.stop_requested.is_set() and not state.cancel_mode.is_set():
+        loop_start = time.time()
+
         ret, frame = cap.read()
         if not ret:
             print("Camera error")
             break
 
-        # Run detection
         objects, _, annotated_frame, _, _, _, _, _ = fuse_yolo_midas(
             frame, yolo_model, midas, transform, class_name_string, class_id=class_id
         )
@@ -126,72 +134,132 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
 
         moving_objects = []
 
-        # --- CASE 1: Objects detected ---
         if objects:
-            # Reset timer since objects are visible
             last_detection_time = time.time()
 
-            for obj in objects:
-                class_name = obj["label"]
-                bbox = obj["bbox"]
+            current_matched_ids = set()
 
-                # First detection after reset or new object
-                if class_name not in tracked_objects:
-                    depth, position = initial_change_states(bbox)
-                    tracked_objects[class_name] = {
-                        "depth": depth,
-                        "position": position,
-                        "time_of_last_detection": time.time()
-                    }
-                    moving_objects.append(obj)
-                    print(f"First detection of {class_name}")
+            detections = []
+            for obj in objects:
+                x1, y1, x2, y2 = obj["bbox"]
+                cx, cy = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+                detections.append({"obj": obj, "cx": cx, "cy": cy, "bbox": obj["bbox"]})
+
+            for det in detections:
+                best_id = None
+                best_dist = float("inf")
+                for obj_id, data in tracked_objects.items():
+                    if data["label"] != det["obj"]["label"]:
+                        continue
+
+                    # center distance
+                    prev_bbox = data["bbox"]
+                    pcx = (prev_bbox[0] + prev_bbox[2]) / 2.0
+                    pcy = (prev_bbox[1] + prev_bbox[3]) / 2.0
+                    dist = math.hypot(det["cx"] - pcx, det["cy"] - pcy)
+
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_id = obj_id
+
+                # Instance matching
+                if best_id is not None and best_dist <= match_distance_threshold:
+                    data = tracked_objects[best_id]
+
+                    # movement magnitude
+                    prev_cx, prev_cy = data["position"]
+                    move_mag = math.hypot(det["cx"] - prev_cx, det["cy"] - prev_cy)
+
+                    # update timestamps
+                    data["bbox"] = det["bbox"]
+                    data["position"] = (det["cx"], det["cy"])
+                    data["depth"], _ = initial_change_states(det["bbox"])  # update depth
+                    data["last_seen"] = time.time()
+                    data["missing_since"] = None
+                    data["visible_frames"] += 1
+
+                    # movement detection
+                    if move_mag > movement_threshold_px:
+                        data["consecutive_move_frames"] += 1
+                    else:
+                        data["consecutive_move_frames"] = 0
+
+                    # announce after min_visible_frames
+                    if not data["reported"] and data["visible_frames"] >= min_visible_frames:
+                        # new object
+                        moving_objects.append(det["obj"])
+                        data["reported"] = True
+                        data["last_reported_position"] = data["position"]
+
+                    elif data["consecutive_move_frames"] >= movement_confirm_frames:
+                        # check movement since last
+                        last_rep_pos = data.get("last_reported_position", (prev_cx, prev_cy))
+                        moved_since_report = math.hypot(data["position"][0] - last_rep_pos[0],
+                                                        data["position"][1] - last_rep_pos[1])
+                        if moved_since_report > movement_threshold_px:
+                            moving_objects.append(det["obj"])
+                            data["last_reported_position"] = data["position"]
+                            data["consecutive_move_frames"] = 0
+
+                    current_matched_ids.add(best_id)
 
                 else:
-                    # Compare position/depth change with previous state
-                    prev_depth = tracked_objects[class_name]["depth"]
-                    prev_position = tracked_objects[class_name]["position"]
+                    tracked_objects[next_object_id] = {
+                        "label": det["obj"]["label"],
+                        "bbox": det["bbox"],
+                        "position": (det["cx"], det["cy"]),
+                        "depth": initial_change_states(det["bbox"])[0],
+                        "first_seen": time.time(),
+                        "last_seen": time.time(),
+                        "missing_since": None,
+                        "visible_frames": 1,          
+                        "consecutive_move_frames": 0,
+                        "reported": False,
+                        "last_reported_position": None
+                    }
+                    # avoid immediate announcing
+                    current_matched_ids.add(next_object_id)
+                    print(f"Created tracker ID {next_object_id} for {det['obj']['label']}")
+                    next_object_id += 1
 
-                    significant_change, delta_x, delta_y, delta_depth, depth_initial = change_detection(
-                        bbox, prev_depth, prev_position
-                    )
+            # missing objects identified
+            now = time.time()
+            for obj_id, data in list(tracked_objects.items()):
+                if obj_id not in current_matched_ids:
+                    if data["missing_since"] is None:
+                        data["missing_since"] = now  
 
-                    if significant_change:
-                        print(f"{class_name} has moved")
-                        moving_objects.append(obj)
+            # remove missing objects
+            to_delete = []
+            for obj_id, data in list(tracked_objects.items()):
+                if data["missing_since"] is not None:
+                    if (time.time() - data["missing_since"]) > max_missing_time:
+                        to_delete.append(obj_id)
 
-                        depth, position = initial_change_states(bbox)
-                        tracked_objects[class_name].update({
-                            "depth": depth,
-                            "position": position,
-                            "time_of_last_detection": time.time()
-                        })
+            for obj_id in to_delete:
+                del tracked_objects[obj_id]
 
-            # --- Speak when movement is detected ---
+            # announce moving objects
             if moving_objects:
                 speech = build_detection_speech(moving_objects)
-
                 if tts_thread is not None and tts_thread.is_alive():
                     stop_speech()
                     tts_thread.join(timeout=0.3)
-
                 tts_thread = threading.Thread(target=speak_text, args=[speech], daemon=True)
                 tts_thread.start()
 
-        # --- CASE 2: No objects detected ---
         else:
             time_since_last = time.time() - last_detection_time
-
-            # If more than 0.5 s without any detection, stop TTS and reset trackers
             if time_since_last > detection_timeout:
                 if tts_thread is not None and tts_thread.is_alive():
-                    print(f"No objects detected for {time_since_last:.2f}s → stopping speech")
+                    print(f"No objects detected for {time_since_last:.2f}s")
                     stop_speech()
-
-                # Reset everything so reappearing objects are treated as new
                 tracked_objects.clear()
                 last_detection_time = time.time()
 
-        time.sleep(0.1)
+        elapsed = time.time() - loop_start
+        sleep_time = max(0.01, 0.1 - elapsed)
+        time.sleep(sleep_time)
 
     state.in_detection = False
     cv2.destroyAllWindows()

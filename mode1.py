@@ -106,7 +106,8 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
     tts_thread = None
     
     # Track state for each class_id
-    tracked_objects = {}  
+    tracked_objects = {}  # {(class_name, instance_id): state}
+    next_instance_id = {}  # {class_name: counter}  
     
     while not state.stop_requested.is_set() and not state.cancel_mode.is_set():
         ret, frame = cap.read()
@@ -124,6 +125,7 @@ def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_strin
         )
 
         cv2.imshow('Detection', annotated_frame)
+        cv2.waitKey(1)
 
         # Check for changes in each tracked class_id
         moving_objects = []

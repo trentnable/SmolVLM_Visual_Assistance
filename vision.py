@@ -3,23 +3,24 @@ import torch
 import numpy as np
 from ultralytics import YOLO
 import math
+from resource_manager import register_model
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
 
 # YOLO
 def setup_yolo(weights_path="yolo11n.pt"):
     """Load YOLO model once."""
     yolo_model = YOLO(weights_path)
+    register_model("yolo", yolo_model)  # register for resource management
     class_names = yolo_model.names
     return yolo_model, class_names
-
 
 # MiDaS
 def setup_midas(model_type="MiDaS_small"):
     """Load MiDaS model and transforms once."""
     midas = torch.hub.load("intel-isl/MiDaS", model_type)
     midas.to(DEVICE).eval()
+    register_model("midas", midas)
 
     midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
     if model_type in ["DPT_Large", "DPT_Hybrid"]:

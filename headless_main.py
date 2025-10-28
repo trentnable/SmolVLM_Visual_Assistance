@@ -7,15 +7,21 @@ from speechrecog import get_voice_input
 from googleTTS import speak_text
 from mode1 import object_location, wait_for_mic, cleanup, reset_mode_state
 from mode2 import reading_mode
-
+from resource_manager import cleanup, register_cleanup_handlers
 
 def main():
-    
-    # Load models
-    print("Loading models...")
-    yolo_model, _ = setup_yolo("yolo11n.pt")
-    midas, transform = setup_midas("MiDaS_small")
-    print(f"Setup complete: {time.time() - start_time:.2f}s\n")
+    register_cleanup_handlers(exit_key='esc')
+
+    try:
+        # Load models
+        print("Loading models...")
+        yolo_model, _ = setup_yolo("yolo11n.pt")
+        midas, transform = setup_midas("MiDaS_small")
+        print(f"Setup complete: {time.time() - start_time:.2f}s\n")
+
+    except Exception as e:
+        print(f"Model loading FAILED: {e}")
+        return
     
     try:
         while True:
@@ -43,10 +49,12 @@ def main():
             reset_mode_state()
     
     except KeyboardInterrupt:
-        print("\nShutting down...")
+        print("Shutting Down...")
+    
+    except Exception as e:
+        print(f"Unexpected ERROR: {e}")
     
     finally:
-        cleanup()
         total_time = time.time() - start_time
         print(f"Total runtime: {total_time:.2f}s")
 

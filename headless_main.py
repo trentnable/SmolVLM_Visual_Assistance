@@ -5,7 +5,7 @@ from objectify import mode_select
 from vision import setup_yolo, setup_midas
 from speechrecog import get_voice_input
 from googleTTS import speak_text
-from mode1 import object_location, wait_for_mic, reset_mode_state
+from mode1 import object_location, wait_for_mic, cleanup, reset_mode_state
 from mode2 import reading_mode
 from resource_manager import cleanup, register_cleanup_handlers
 

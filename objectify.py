@@ -133,7 +133,7 @@ def classify_request(user_text):
     
 #Mode Labels
 label_texts_mode = {
-    "one": "find,locate,where,where's",
+    "one": "find,locate,detect,where,where's",
     "two": "read,reading,interpret,say,words",
 }
 

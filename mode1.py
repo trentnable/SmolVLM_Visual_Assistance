@@ -33,6 +33,24 @@ def on_key_press(event):
                 print("Stopping detection")
 
             state.mic_ready.set()
+                
+        elif event.name == 'c':
+            # Exit mode completely
+            if state.in_detection:
+                state.stop_requested.set()
+            state.cancel_mode.set()
+            print("Exiting Mode 1, returning to main menu")
+
+        elif event.name == 'c':
+            if not state.mic_active:
+                print("No mode is active")
+                speak_text("No mode is active")
+                return
+
+            if state.in_detection:
+                state.stop_requested.set()
+            state.cancel_mode.set()
+            print("Exiting Mode, returning to main menu")
 
         elif event.name == 'c':
             if not state.mic_active:
@@ -81,6 +99,25 @@ def wait_for_mic_in_mode():
     
     return not state.cancel_mode.is_set()
 
+def wait_for_mic_in_mode():
+    """Wait for mic button press while in Mode 1"""
+    # If mic is already ready (from stopping previous detection), proceed immediately
+    if state.mic_ready.is_set():
+        state.mic_ready.clear()
+        return True
+    
+    print("\nPress 'm' for new command, 'c' to exit mode")
+    speak_text("Press 'm' for new command, or 'c' to exit mode")
+    
+    # Wait for mic button or cancel
+    while not state.mic_ready.is_set() and not state.cancel_mode.is_set():
+        state.mic_ready.wait(timeout=0.5)
+    
+    state.mic_ready.clear()
+    
+    # Return True if continuing in mode, False if exiting
+    return not state.cancel_mode.is_set()
+
 def reset_state():
     """Reset state variables between detections"""
     state.in_detection = False
@@ -94,22 +131,28 @@ def reset_mode_state():
     state.mic_ready.clear()
 
 def detection_loop(cap, yolo_model, midas, transform, class_id, class_name_string):
-    """Main detection loop for Mode 1 - tracks each class individually"""
+    """Detection loop with flicker tolerance and per-instance tracking."""
 
     state.in_detection = True
     state.stop_requested.clear()
-    
+
     print(f"\nDetecting {class_name_string}. Press 'm' for mic, 'c' to exit mode.")
-    
-    loop_start = time.time()
-    detection_count = 0
+
     tts_thread = None
-    
-    # Track state for each class_id
-    tracked_objects = {}  # {(class_name, instance_id): state}
-    next_instance_id = {}  # {class_name: counter}  
-    
+    tracked_objects = {}  # ID dictionary
+    last_detection_time = time.time()
+    detection_timeout = 0.5  # undetected timer
+
+    max_missing_time = 0.5          # missing object buffer
+    min_visible_frames = 6          # object frames before adding to IDs
+    movement_confirm_frames = 2     # movement frames
+    match_distance_threshold = 60   # tracked object matching
+    movement_threshold_px = 30      # significant movement
+    next_object_id = 0
+
     while not state.stop_requested.is_set() and not state.cancel_mode.is_set():
+        loop_start = time.time()
+
         ret, frame = cap.read()
         if not ret:
             print("Camera error")
@@ -230,6 +273,14 @@ def initial_change_states(bbox):
     position_initial = (mx, my)
     return depth_initial, position_initial
 
+def build_detection_speech(objects):
+    parts = []
+    for obj in objects:
+        label = obj["label"]
+        position = obj["position"]
+        depth_cat = obj["depth_category"]
+        parts.append(f"{label} is {position} and {depth_cat}")
+    return ". ".join(parts)
 
 def build_detection_speech(objects):
     parts = []

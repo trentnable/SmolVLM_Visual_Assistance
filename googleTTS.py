@@ -10,6 +10,9 @@ register_pygame()   # register for cleanup
 # stop flag for tts thread
 stop_tts_flag = threading.Event()
 
+# stop flag for tts thread
+stop_tts_flag = threading.Event()
+
 def speak_text(text):
     """
     Convert text to speech using Google TTS and play it.

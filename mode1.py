@@ -32,6 +32,13 @@ def on_key_press(event):
                 print("Stopping detection")
 
             state.mic_ready.set()
+                
+        elif event.name == 'c':
+            # Exit mode completely
+            if state.in_detection:
+                state.stop_requested.set()
+            state.cancel_mode.set()
+            print("Exiting Mode 1, returning to main menu")
 
         elif event.name == 'c':
             if not state.mic_active:
@@ -82,6 +89,25 @@ def wait_for_mic_in_mode():
     state.mic_ready.clear()
     
     
+    return not state.cancel_mode.is_set()
+
+def wait_for_mic_in_mode():
+    """Wait for mic button press while in Mode 1"""
+    # If mic is already ready (from stopping previous detection), proceed immediately
+    if state.mic_ready.is_set():
+        state.mic_ready.clear()
+        return True
+    
+    print("\nPress 'm' for new command, 'c' to exit mode")
+    speak_text("Press 'm' for new command, or 'c' to exit mode")
+    
+    # Wait for mic button or cancel
+    while not state.mic_ready.is_set() and not state.cancel_mode.is_set():
+        state.mic_ready.wait(timeout=0.5)
+    
+    state.mic_ready.clear()
+    
+    # Return True if continuing in mode, False if exiting
     return not state.cancel_mode.is_set()
 
 def reset_state():
@@ -303,6 +329,14 @@ def initial_change_states(bbox):
     position_initial = (mx, my)
     return depth_initial, position_initial
 
+def build_detection_speech(objects):
+    parts = []
+    for obj in objects:
+        label = obj["label"]
+        position = obj["position"]
+        depth_cat = obj["depth_category"]
+        parts.append(f"{label} is {position} and {depth_cat}")
+    return ". ".join(parts)
 
 def build_detection_speech(objects):
     parts = []
